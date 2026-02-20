@@ -15,19 +15,34 @@
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
-- [Development Workflow](#development-workflow)
-- [Contributing](#contributing)
-- [Code Style Guidelines](#code-style-guidelines)
-- [Available Scripts](#available-scripts)
-- [Troubleshooting](#troubleshooting)
+- [Overview](#-overview)
+- [Features](#-features)
+- [Tech Stack](#️-tech-stack)
+- [Architecture](#️-architecture)
+- [Project Structure](#-project-structure)
+- [Prerequisites](#-prerequisites)
+- [Getting Started](#-getting-started)
+- [Environment Variables](#-environment-variables)
+- [Development Workflow](#-development-workflow)
+- [Contributing](#-contributing)
+- [Code Style Guidelines](#-code-style-guidelines)
+- [Available Scripts](#-available-scripts)
+- [Troubleshooting](#-troubleshooting)
+- [Additional Resources](#-additional-resources)
+- [License](#-license)
+- [Team & Support](#-team--support)
+
+## 📚 Additional Documentation
+
+For more detailed information, check out these guides:
+
+- **[🚀 Quick Setup Guide](QUICK_SETUP.md)** - Get started in 5 minutes
+- **[📘 Quick Reference](QUICK_REFERENCE.md)** - Command and code snippets cheat sheet
+- **[🤝 Contributing Guide](CONTRIBUTING.md)** - How to contribute to this project
+- **[🏗️ Project Structure](PROJECT_STRUCTURE.md)** - Detailed architecture and patterns
+- **[📡 API Integration](API_INTEGRATION.md)** - Backend API integration guide
+- **[📝 Changelog](CHANGELOG.md)** - Version history and updates
+- **[🎨 View Diagrams](DIAGRAMS.html)** - Interactive architecture diagrams
 
 ---
 
@@ -189,7 +204,7 @@ graph TD
         Layout[layout.tsx]
         Page[page.tsx]
         Dashboard[dashboard/]
-        Case[case/[caseId]/]
+        Case["case/[caseId]"/]
     end
     
     subgraph "Shared Components"
@@ -741,6 +756,15 @@ For questions or support:
 - Create an issue in the repository
 - Contact the development team
 - Review existing documentation
+
+## 🔗 Related Documentation
+
+- [Quick Setup Guide](QUICK_SETUP.md) - Fast setup instructions
+- [Quick Reference](QUICK_REFERENCE.md) - Commands and patterns
+- [Contributing Guide](CONTRIBUTING.md) - Contribution guidelines
+- [Project Structure](PROJECT_STRUCTURE.md) - Architecture details
+- [API Integration](API_INTEGRATION.md) - API documentation
+- [Changelog](CHANGELOG.md) - Version history
 
 ---
 

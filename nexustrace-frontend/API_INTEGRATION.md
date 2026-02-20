@@ -1,16 +1,21 @@
 # API Integration Guide
 
+> 📖 [← Back to Main README](README.md) | [Quick Setup](QUICK_SETUP.md) | [Project Structure](PROJECT_STRUCTURE.md) | [Contributing](CONTRIBUTING.md)
+
 This guide explains how the NexusTrace frontend integrates with the backend API.
 
 ## 📋 Table of Contents
 
-- [API Client Setup](#api-client-setup)
-- [Authentication Flow](#authentication-flow)
-- [Making API Calls](#making-api-calls)
-- [Error Handling](#error-handling)
-- [API Endpoints Reference](#api-endpoints-reference)
-- [Request/Response Examples](#request-response-examples)
-- [Best Practices](#best-practices)
+- [API Client Setup](#-api-client-setup)
+- [Authentication Flow](#-authentication-flow)
+- [Making API Calls](#-making-api-calls)
+- [Error Handling](#-error-handling)
+- [API Endpoints Reference](#-api-endpoints-reference)
+- [Request/Response Examples](#-requestresponse-examples)
+- [Best Practices](#-best-practices)
+- [Security Considerations](#-security-considerations)
+- [Debugging API Calls](#-debugging-api-calls)
+- [Additional Resources](#-additional-resources)
 
 ---
 
@@ -602,6 +607,17 @@ api.interceptors.response.use(
 - [Axios Documentation](https://axios-http.com/docs/intro)
 - [TanStack Query Guide](https://tanstack.com/query/latest/docs/framework/react/overview)
 - [REST API Best Practices](https://restfulapi.net/)
+
+---
+
+## 📚 Related Documentation
+
+- [Main README](README.md) - Project overview and getting started
+- [Quick Setup Guide](QUICK_SETUP.md) - Fast setup instructions
+- [Quick Reference](QUICK_REFERENCE.md) - Commands and patterns
+- [Contributing Guide](CONTRIBUTING.md) - Contribution guidelines
+- [Project Structure](PROJECT_STRUCTURE.md) - Architecture details
+- [Changelog](CHANGELOG.md) - Version history
 
 ---
 

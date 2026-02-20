@@ -1,5 +1,7 @@
 # Quick Reference Guide 📘
 
+> 📖 [← Back to Main README](README.md) | [Quick Setup](QUICK_SETUP.md) | [Contributing](CONTRIBUTING.md) | [API Integration](API_INTEGRATION.md)
+
 A quick reference for common tasks and information when working with NexusTrace Frontend.
 
 ## 🚀 Quick Start Commands
@@ -403,6 +405,15 @@ grep -r "useAuth" .
 3. Search existing issues
 4. Create a new issue with details
 5. Ask the team
+
+## 📚 Related Documentation
+
+- [Main README](README.md) - Project overview and getting started
+- [Quick Setup Guide](QUICK_SETUP.md) - Fast setup instructions
+- [Contributing Guide](CONTRIBUTING.md) - Contribution guidelines
+- [Project Structure](PROJECT_STRUCTURE.md) - Architecture details
+- [API Integration](API_INTEGRATION.md) - API documentation
+- [Changelog](CHANGELOG.md) - Version history
 
 ---
 

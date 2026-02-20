@@ -1,5 +1,7 @@
 # Changelog
 
+> 📖 [← Back to Main README](README.md) | [Quick Setup](QUICK_SETUP.md) | [Contributing](CONTRIBUTING.md)
+
 All notable changes to the NexusTrace Frontend project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

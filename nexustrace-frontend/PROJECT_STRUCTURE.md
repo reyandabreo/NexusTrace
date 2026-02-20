@@ -1,17 +1,23 @@
 # NexusTrace Frontend - Project Structure
 
+> 📖 [← Back to Main README](README.md) | [Quick Setup](QUICK_SETUP.md) | [API Integration](API_INTEGRATION.md) | [Contributing](CONTRIBUTING.md)
+
 This document provides an in-depth overview of the NexusTrace frontend architecture, file organization, and design patterns.
 
 ## 📋 Table of Contents
 
-- [Architecture Overview](#architecture-overview)
-- [Directory Structure](#directory-structure)
-- [Routing Strategy](#routing-strategy)
-- [State Management](#state-management)
-- [Data Flow](#data-flow)
-- [Component Hierarchy](#component-hierarchy)
-- [Type System](#type-system)
-- [Design Patterns](#design-patterns)
+- [Architecture Overview](#️-architecture-overview)
+- [Directory Structure](#-directory-structure)
+- [Routing Strategy](#️-routing-strategy)
+- [State Management](#️-state-management)
+- [Data Flow](#-data-flow)
+- [Component Hierarchy](#-component-hierarchy)
+- [Type System](#-type-system)
+- [Design Patterns](#-design-patterns)
+- [Utility Functions](#-utility-functions)
+- [Module System](#-module-system)
+- [Performance Optimizations](#-performance-optimizations)
+- [Summary](#-summary)
 
 ---
 
@@ -434,19 +440,20 @@ sequenceDiagram
     participant API as API Client
     participant BE as Backend
     
-    C->>Q: useQuery({queryKey: ['case', id]})
+    C->>Q: "useQuery({queryKey: ['case', id]})"
     Q->>Q: Check cache
     alt Cache Hit
         Q-->>C: Return cached data
     else Cache Miss or Stale
         Q->>API: fetchCase(id)
         API->>API: Inject JWT token
-        API->>BE: GET /cases/:id
+        API->>BE: "GET /cases/:id"
         BE-->>API: Case data
         API-->>Q: Parse response
         Q->>Q: Update cache
         Q-->>C: Return fresh data
     end
+
 ```
 
 ### Evidence Upload Flow
@@ -759,6 +766,17 @@ This structure provides:
 - **Performance**: Optimized for production
 
 For more details on specific implementations, refer to the code comments and inline documentation.
+
+---
+
+## 📚 Related Documentation
+
+- [Main README](README.md) - Project overview and getting started
+- [Quick Setup Guide](QUICK_SETUP.md) - Fast setup instructions
+- [Quick Reference](QUICK_REFERENCE.md) - Commands and patterns
+- [Contributing Guide](CONTRIBUTING.md) - Contribution guidelines
+- [API Integration](API_INTEGRATION.md) - API documentation
+- [Changelog](CHANGELOG.md) - Version history
 
 ---
 

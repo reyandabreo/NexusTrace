@@ -1,5 +1,7 @@
 # Contributing to NexusTrace Frontend
 
+> 📖 [← Back to Main README](README.md) | [Quick Setup](QUICK_SETUP.md) | [Quick Reference](QUICK_REFERENCE.md) | [Project Structure](PROJECT_STRUCTURE.md)
+
 Thank you for your interest in contributing to NexusTrace! This document provides guidelines and instructions for contributing to the project.
 
 ## 🎯 Code of Conduct
@@ -382,6 +384,17 @@ If you have questions:
 ## 🙏 Thank You!
 
 Your contributions make NexusTrace better for everyone. We appreciate your time and effort!
+
+---
+
+## 📚 Related Documentation
+
+- [Main README](README.md) - Project overview and getting started
+- [Quick Setup Guide](QUICK_SETUP.md) - Fast setup instructions
+- [Quick Reference](QUICK_REFERENCE.md) - Commands and patterns
+- [Project Structure](PROJECT_STRUCTURE.md) - Architecture details
+- [API Integration](API_INTEGRATION.md) - API documentation
+- [Changelog](CHANGELOG.md) - Version history
 
 ---
 

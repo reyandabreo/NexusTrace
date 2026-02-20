@@ -1,5 +1,7 @@
 # Quick Setup Guide 🚀
 
+> 📖 [← Back to Main README](README.md) | [Quick Reference](QUICK_REFERENCE.md) | [Contributing](CONTRIBUTING.md) | [Project Structure](PROJECT_STRUCTURE.md)
+
 A streamlined guide to get NexusTrace frontend running in under 5 minutes.
 
 ## Prerequisites Checklist
@@ -202,5 +204,16 @@ If all steps work, your setup is complete! ✅
 **Setup Time**: ~5 minutes  
 **First Case Created**: ~10 minutes  
 **Ready to Contribute**: ~30 minutes after reading docs
+
+## 📚 Related Documentation
+
+- [Main README](README.md) - Project overview and getting started
+- [Quick Reference](QUICK_REFERENCE.md) - Commands and patterns
+- [Contributing Guide](CONTRIBUTING.md) - Contribution guidelines
+- [Project Structure](PROJECT_STRUCTURE.md) - Architecture details
+- [API Integration](API_INTEGRATION.md) - API documentation
+- [Changelog](CHANGELOG.md) - Version history
+
+---
 
 Happy coding! 🎉
