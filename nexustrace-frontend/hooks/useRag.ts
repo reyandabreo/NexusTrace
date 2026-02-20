@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import type { RagResponse, RagExplanation, FeedbackRequest } from "@/types/rag";
@@ -58,6 +58,18 @@ export function useRagExplanation() {
       
       toast.error("Failed to load explanation", { description });
     },
+  });
+}
+
+export function useQueryHistory(caseId?: string) {
+  return useQuery({
+    queryKey: caseId ? ["queryHistory", caseId] : ["queryHistory"],
+    queryFn: async () => {
+      const endpoint = caseId ? `/rag/history/${caseId}` : "/rag/history";
+      const res = await api.get(endpoint);
+      return res.data;
+    },
+    enabled: true,
   });
 }
 

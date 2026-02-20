@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useCases } from "@/hooks/useCases";
+import { useQueryHistory } from "@/hooks/useRag";
 import { useQueries } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { getCaseId } from "@/lib/caseUtils";
@@ -55,11 +56,13 @@ function BarItem({
 
 export default function AnalyticsPage() {
   const { data: cases } = useCases();
+  const { data: allQueries } = useQueryHistory();
 
   const totalCases = cases?.length || 0;
   const openCases = cases?.filter((c) => (c.status || "open") === "open").length || 0;
   const inProgressCases = cases?.filter((c) => (c.status || "open") === "in_progress").length || 0;
   const closedCases = cases?.filter((c) => (c.status || "open") === "closed").length || 0;
+  const totalQueries = allQueries?.length || 0;
 
   // Fetch network graphs for all cases
   const caseIds = cases?.map((c) => getCaseId(c)).filter(Boolean) || [];
@@ -223,7 +226,7 @@ export default function AnalyticsPage() {
           <CardContent className="flex items-center gap-4 p-5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f59e0b]/10">
               <Brain className="h-5 w-5 text-[#f59e0b]" />
-            </div>
+            </div>{totalQueries}
             <div>
               <p className="text-2xl font-bold text-foreground">--</p>
               <p className="text-xs text-muted-foreground">AI Queries Run</p>
@@ -326,20 +329,33 @@ export default function AnalyticsPage() {
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                <p className="text-2xl font-bold text-foreground">--</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Avg Response Time</p>
+                <p className="text-2xl font-bold text-foreground">{totalQueries}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Total Queries</p>
               </div>
               <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                <p className="text-2xl font-bold text-foreground">--</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Avg Relevance Score</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {totalQueries > 0 
+                    ? Math.round((allQueries?.reduce((sum: number, q: any) => sum + (q.chunks_retrieved || 0), 0) || 0) / totalQueries)
+                    : 0}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">Avg Chunks Retrieved</p>
               </div>
               <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                <p className="text-2xl font-bold text-foreground">--</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Positive Feedback</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {cases?.filter((c) => {
+                    const cid = getCaseId(c);
+                    return allQueries?.some((q: any) => q.case_id === cid);
+                  }).length || 0}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">Cases with Queries</p>
               </div>
               <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                <p className="text-2xl font-bold text-foreground">--</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Chunks Retrieved</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {totalQueries > 0 
+                    ? `${Math.round((totalQueries / totalCases) * 10) / 10}`
+                    : "0"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">Avg Queries/Case</p>
               </div>
             </div>
           </CardContent>

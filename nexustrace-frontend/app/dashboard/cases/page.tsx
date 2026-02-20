@@ -95,56 +95,59 @@ export default function AllCasesPage() {
               Manage and search all investigation cases
             </p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 rounded-xl w-full sm:w-auto">
-                <Plus className="h-4 w-4" />
-                New Case
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="border-border bg-card">
-              <DialogHeader>
-                <DialogTitle className="text-foreground">Create New Case</DialogTitle>
-                <DialogDescription className="text-muted-foreground">
-                  Start a new investigation case
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title" className="text-foreground">
-                    Case Title
-                  </Label>
-                  <Input
-                    id="title"
-                    placeholder="e.g., Financial Fraud Investigation"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="border-border bg-muted text-foreground"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-foreground">
-                    Description
-                  </Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Provide details about the investigation..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="border-border bg-muted text-foreground min-h-24"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full rounded-xl"
-                  disabled={createCase.isPending}
-                >
-                  {createCase.isPending ? "Creating..." : "Create Case"}
+          {/* Only show New Case button for 'all' and 'open' tabs */}
+          {(activeTab === "all" || activeTab === "open") && (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 rounded-xl w-full sm:w-auto">
+                  <Plus className="h-4 w-4" />
+                  New Case
                 </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="border-border bg-card">
+                <DialogHeader>
+                  <DialogTitle className="text-foreground">Create New Case</DialogTitle>
+                  <DialogDescription className="text-muted-foreground">
+                    Start a new investigation case
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreate} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="title" className="text-foreground">
+                      Case Title
+                    </Label>
+                    <Input
+                      id="title"
+                      placeholder="e.g., Financial Fraud Investigation"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="border-border bg-muted text-foreground"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description" className="text-foreground">
+                      Description
+                    </Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Provide details about the investigation..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="border-border bg-muted text-foreground min-h-24"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full rounded-xl"
+                    disabled={createCase.isPending}
+                  >
+                    {createCase.isPending ? "Creating..." : "Create Case"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -257,14 +260,27 @@ export default function AllCasesPage() {
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 py-20">
           <FolderOpen className="mb-4 h-12 w-12 text-muted-foreground/40" />
           <h3 className="text-lg font-semibold text-foreground">
-            {search ? "No cases found" : "No cases yet"}
+            {search 
+              ? "No cases found" 
+              : activeTab === "closed" 
+                ? "No cases closed" 
+                : activeTab === "open"
+                  ? "No open cases" 
+                  : activeTab === "in_progress"
+                    ? "No cases in progress"
+                    : "No cases yet"}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {search
               ? "Try adjusting your search criteria"
-              : "Create your first investigation to get started"}
+              : activeTab === "closed"
+                ? "Cases marked as closed will appear here"
+                : activeTab === "in_progress"
+                  ? "Cases you're actively working on will appear here"
+                  : "Create your first investigation to get started"}
           </p>
-          {!search && (
+          {/* Only show create button for empty state in all/open tabs */}
+          {!search && (activeTab === "all" || activeTab === "open") && (
             <Button
               className="mt-6 gap-2 rounded-xl"
               onClick={() => setDialogOpen(true)}

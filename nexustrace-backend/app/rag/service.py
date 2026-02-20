@@ -88,3 +88,33 @@ class RAGService:
             retrieved_chunks=chunks,
             graph_expansion=[] # Could detail graph hops here if stored
         )
+
+    def get_query_history(self, case_id: str):
+        """Get all queries for a specific case"""
+        cypher = """
+        MATCH (c:Case {case_id: $case_id})-[:HAS_QUERY]->(q:Query)
+        OPTIONAL MATCH (q)-[r:RETRIEVED]->(ch:Chunk)
+        WITH q, COUNT(DISTINCT ch) as chunks_count
+        RETURN q.query_id as query_id, q.text as question, q.answer as answer, 
+               q.timestamp as timestamp, $case_id as case_id, chunks_count as chunks_retrieved
+        ORDER BY q.timestamp DESC
+        """
+        results = self.session.run(cypher, case_id=case_id)
+        
+        from app.schemas.rag import QueryHistory
+        return [QueryHistory(**record) for record in results]
+
+    def get_all_query_history(self, user_id: str):
+        """Get all queries for all user's cases"""
+        cypher = """
+        MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case)-[:HAS_QUERY]->(q:Query)
+        OPTIONAL MATCH (q)-[r:RETRIEVED]->(ch:Chunk)
+        WITH q, c.case_id as case_id, COUNT(DISTINCT ch) as chunks_count
+        RETURN q.query_id as query_id, q.text as question, q.answer as answer,
+               q.timestamp as timestamp, case_id, chunks_count as chunks_retrieved
+        ORDER BY q.timestamp DESC
+        """
+        results = self.session.run(cypher, user_id=user_id)
+        
+        from app.schemas.rag import QueryHistory
+        return [QueryHistory(**record) for record in results]

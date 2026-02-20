@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
-import { useCase, useNetworkGraph, useEntities, usePrioritized } from "@/hooks/useCases";
+import { useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useCase, useNetworkGraph, useEntities, usePrioritized, useUpdateCase } from "@/hooks/useCases";
 import { useEvidenceList } from "@/hooks/useUpload";
 import { useCaseStore } from "@/store/caseStore";
 import { useActivityStore } from "@/store/activityStore";
@@ -10,6 +10,7 @@ import { getCaseName, formatCaseStatus } from "@/lib/caseUtils";
 import EvidenceUpload from "@/components/evidence/EvidenceUpload";
 import EvidenceList from "@/components/evidence/EvidenceList";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
@@ -18,12 +19,24 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   FolderOpen,
   Clock,
   FileText,
   Users,
   BarChart3,
   Shield,
+  CheckCircle,
 } from "lucide-react";
 
 const statusColor: Record<string, string> = {
@@ -34,13 +47,16 @@ const statusColor: Record<string, string> = {
 
 export default function CaseOverviewPage() {
   const params = useParams();
+  const router = useRouter();
   const caseId = params?.caseId as string;
   const { data: caseData, isLoading } = useCase(caseId);
   const { data: evidence } = useEvidenceList(caseId);
   const { data: entities } = useEntities(caseId);
   const { data: prioritized } = usePrioritized(caseId);
+  const updateCase = useUpdateCase();
   const addActivity = useActivityStore((s) => s.addActivity);
   const trackedCaseRef = useRef<string | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
   
   // Track case view only once per case
   useEffect(() => {
@@ -57,14 +73,36 @@ export default function CaseOverviewPage() {
   // Filter prioritized data to get valid leads (exclude chunks)
   const validLeads = prioritized?.filter((item: any) => item.entity && item.entity_type) || [];
 
+  const handleCloseCase = async () => {
+    setIsClosing(true);
+    try {
+      await updateCase.mutateAsync({
+        caseId,
+        data: { status: "closed" },
+      });
+      // Optionally redirect to all cases after closing
+      // router.push("/dashboard/cases");
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="p-8 space-y-6">
-        <Skeleton className="h-8 w-1/3" />
-        <div className="grid gap-4 md:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-28" />
-          ))}
+      <div className="p-8">
+        <div className="mb-8 space-y-3">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+        <div className="mb-8 grid gap-4 md:grid-cols-4">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
         </div>
       </div>
     );
@@ -74,18 +112,52 @@ export default function CaseOverviewPage() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-3">
-          <FolderOpen className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">
-            {caseData ? getCaseName(caseData) : "Case Overview"}
-          </h1>
-          {caseData && (
-            <Badge
-              variant="outline"
-              className={statusColor[caseData.status || "open"] || statusColor.open}
-            >
-              {formatCaseStatus(caseData.status)}
-            </Badge>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <FolderOpen className="h-6 w-6 text-primary" />
+            <h1 className="text-2xl font-bold text-foreground">
+              {caseData ? getCaseName(caseData) : "Case Overview"}
+            </h1>
+            {caseData && (
+              <Badge
+                variant="outline"
+                className={statusColor[caseData.status || "open"] || statusColor.open}
+              >
+                {formatCaseStatus(caseData.status)}
+              </Badge>
+            )}
+          </div>
+          {caseData && caseData.status !== "closed" && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e]/10"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Close Case
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="border-border bg-card">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-foreground">Close this case?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-muted-foreground">
+                    This will mark the case as closed. You can still view the case and its evidence,
+                    but it will be moved to the closed cases section.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="border-border">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleCloseCase}
+                    disabled={isClosing}
+                    className="bg-[#22c55e] hover:bg-[#22c55e]/90"
+                  >
+                    {isClosing ? "Closing..." : "Close Case"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
         <p className="mt-2 text-sm text-muted-foreground">

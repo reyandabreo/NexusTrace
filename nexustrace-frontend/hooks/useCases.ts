@@ -72,6 +72,47 @@ export function useCreateCase() {
   });
 }
 
+export function useUpdateCase() {
+  const queryClient = useQueryClient();
+  const addActivity = useActivityStore((s) => s.addActivity);
+
+  return useMutation({
+    mutationFn: async ({ caseId, data }: { caseId: string; data: Partial<Case> }) => {
+      const res = await api.patch<Case>(`/cases/${caseId}`, data);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["cases"] });
+      queryClient.invalidateQueries({ queryKey: ["case", data.case_id || data.id] });
+      
+      // Track activity
+      addActivity({
+        type: "update",
+        action: `Updated case: ${data.name || 'Case'}`,
+        target: data.case_id || data.id || 'Unknown',
+      });
+      
+      toast.success("Case updated", {
+        description: "Case has been updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      const data = error.response?.data;
+      let description = "Failed to update case";
+      
+      if (Array.isArray(data)) {
+        description = data[0]?.msg || "Validation failed";
+      } else if (data && typeof data === "object" && data.msg) {
+        description = data.msg;
+      } else if (typeof data?.detail === "string") {
+        description = data.detail;
+      }
+      
+      toast.error("Failed to update case", { description });
+    },
+  });
+}
+
 export function useTimeline(caseId: string) {
   return useQuery({
     queryKey: ["timeline", caseId],

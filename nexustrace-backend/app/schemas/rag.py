@@ -17,3 +17,11 @@ class ExplanationResponse(BaseModel):
     question: str
     retrieved_chunks: List[Dict[str, Any]]
     graph_expansion: List[Dict[str, Any]]
+
+class QueryHistory(BaseModel):
+    query_id: str
+    case_id: str
+    question: str
+    answer: Optional[str] = None
+    timestamp: int
+    chunks_retrieved: Optional[int] = 0

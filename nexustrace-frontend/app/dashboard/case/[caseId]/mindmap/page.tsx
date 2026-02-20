@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -10,6 +10,7 @@ import {
   useEdgesState,
   type Node,
   type Edge,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useMindmap } from "@/hooks/useCases";
@@ -17,16 +18,24 @@ import { BrainCircuit } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { MindmapNode } from "@/types/graph";
 
+// Improved hierarchical layout with better spacing
 function flattenMindmap(
   node: MindmapNode,
   x: number = 0,
   y: number = 0,
   level: number = 0,
   nodes: Node[] = [],
-  edges: Edge[] = []
+  edges: Edge[] = [],
+  parentY: number = 0
 ): { nodes: Node[]; edges: Edge[] } {
   const colors = ["#3b82f6", "#a855f7", "#22c55e", "#f59e0b", "#06b6d4", "#ec4899"];
   const color = colors[level % colors.length];
+
+  // Calculate node dimensions based on level and label length
+  const baseWidth = level === 0 ? 140 : 100;
+  const labelLength = node.label?.length || 10;
+  const nodeWidth = Math.max(baseWidth, labelLength * 8);
+  const nodeHeight = level === 0 ? 60 : 50;
 
   nodes.push({
     id: node.id,
@@ -36,30 +45,49 @@ function flattenMindmap(
       background: color,
       color: "#fff",
       border: "none",
-      borderRadius: "12px",
-      padding: "8px 16px",
-      fontSize: level === 0 ? "14px" : "11px",
+      borderRadius: level === 0 ? "16px" : "12px",
+      padding: level === 0 ? "14px 20px" : "10px 16px",
+      fontSize: level === 0 ? "14px" : "12px",
       fontWeight: level === 0 ? 700 : 500,
-      minWidth: level === 0 ? "120px" : "80px",
+      minWidth: `${nodeWidth}px`,
       textAlign: "center" as const,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      whiteSpace: "nowrap" as const,
     },
   });
 
-  if (node.children) {
-    const totalHeight = (node.children.length - 1) * 100;
+  if (node.children && node.children.length > 0) {
+    // Improved spacing calculations
+    const horizontalSpacing = 280; // Increased from 250
+    const baseVerticalSpacing = 120; // Increased from 100
+    
+    // Adapt vertical spacing based on number of children
+    const verticalSpacing = node.children.length > 5 
+      ? baseVerticalSpacing + (node.children.length * 5) 
+      : baseVerticalSpacing;
+    
+    const totalHeight = (node.children.length - 1) * verticalSpacing;
+    const startY = y - totalHeight / 2;
+
     node.children.forEach((child, i) => {
-      const childY = y - totalHeight / 2 + i * 100;
-      const childX = x + 250;
+      const childY = startY + i * verticalSpacing;
+      const childX = x + horizontalSpacing;
 
       edges.push({
         id: `${node.id}-${child.id}`,
         source: node.id,
         target: child.id,
-        style: { stroke: "#1f2335", strokeWidth: 2 },
+        style: { 
+          stroke: "#1f2335", 
+          strokeWidth: level === 0 ? 3 : 2,
+        },
         animated: false,
+        type: "smoothstep", // Smooth step edges look better in mindmaps
       });
 
-      flattenMindmap(child, childX, childY, level + 1, nodes, edges);
+      flattenMindmap(child, childX, childY, level + 1, nodes, edges, y);
     });
   }
 
@@ -70,15 +98,32 @@ export default function MindmapPage() {
   const params = useParams();
   const caseId = params?.caseId as string;
   const { data: mindmapData, isLoading } = useMindmap(caseId);
+  const { fitView } = useReactFlow();
 
   const { flowNodes, flowEdges } = useMemo(() => {
     if (!mindmapData?.root) return { flowNodes: [], flowEdges: [] };
-    const { nodes, edges } = flattenMindmap(mindmapData.root, 100, 300);
+    const { nodes, edges } = flattenMindmap(mindmapData.root, 100, window.innerHeight / 2);
     return { flowNodes: nodes, flowEdges: edges };
   }, [mindmapData]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
+
+  // Update nodes when flowNodes change
+  useEffect(() => {
+    if (flowNodes.length > 0) {
+      setNodes(flowNodes);
+      // Fit view after a short delay to ensure nodes are rendered
+      setTimeout(() => fitView({ padding: 0.2, duration: 800 }), 100);
+    }
+  }, [flowNodes, setNodes, fitView]);
+
+  // Update edges when flowEdges change
+  useEffect(() => {
+    if (flowEdges.length > 0) {
+      setEdges(flowEdges);
+    }
+  }, [flowEdges, setEdges]);
 
   if (isLoading) {
     return (

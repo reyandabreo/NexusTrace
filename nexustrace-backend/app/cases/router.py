@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from neo4j import Session
 from app.db.neo4j import get_db_session
 from app.auth.router import get_current_user
-from app.schemas.case import CaseCreate, CaseResponse
+from app.schemas.case import CaseCreate, CaseResponse, CaseUpdate
 from app.cases.service import CaseService
 
 router = APIRouter()
@@ -33,6 +33,16 @@ def get_case(
 ):
     service = CaseService(session, current_user["user_id"])
     return service.get_case(case_id)
+
+@router.patch("/{case_id}", response_model=CaseResponse)
+def update_case(
+    case_id: str,
+    case_update: CaseUpdate,
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db_session)
+):
+    service = CaseService(session, current_user["user_id"])
+    return service.update_case(case_id, case_update)
 
 @router.delete("/{case_id}")
 def delete_case(
