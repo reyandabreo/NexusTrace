@@ -1,7 +1,7 @@
 <div align="center">
 
 # 🔍 NexusTrace
-
+![alt text](image.png)
 ### AI-Powered Digital Forensics Intelligence Platform
 
 **Transforming forensic investigations through knowledge graphs, artificial intelligence, and intelligent automation**

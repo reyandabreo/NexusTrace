@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useActivityStore } from "@/store/activityStore";
+import { useAuthStore } from "@/store/authStore";
 import type { Case, CreateCaseRequest } from "@/types/case";
 
 export function useCases() {
@@ -30,6 +31,7 @@ export function useCase(caseId: string) {
 export function useCreateCase() {
   const queryClient = useQueryClient();
   const addActivity = useActivityStore((s) => s.addActivity);
+  const user = useAuthStore((s) => s.user);
 
   return useMutation({
     mutationFn: async (data: CreateCaseRequest) => {
@@ -43,6 +45,7 @@ export function useCreateCase() {
       addActivity({
         type: "case",
         action: `Created new case: ${data.name || data.title || 'Untitled'}`,
+        userId: user?.id || 'unknown',
         target: data.case_id || data.id || 'Unknown',
       });
       
@@ -74,6 +77,7 @@ export function useCreateCase() {
 
 export function useUpdateCase() {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const addActivity = useActivityStore((s) => s.addActivity);
 
   return useMutation({
@@ -88,6 +92,7 @@ export function useUpdateCase() {
       // Track activity
       addActivity({
         type: "update",
+        userId: user?.id || 'unknown',
         action: `Updated case: ${data.name || 'Case'}`,
         target: data.case_id || data.id || 'Unknown',
       });
@@ -100,7 +105,10 @@ export function useUpdateCase() {
       const data = error.response?.data;
       let description = "Failed to update case";
       
-      if (Array.isArray(data)) {
+      // Check if it's a network error (backend not running)
+      if (error.message === "Network Error" || !error.response) {
+        description = "Cannot connect to server. Please ensure the backend server is running on http://localhost:8000";
+      } else if (Array.isArray(data)) {
         description = data[0]?.msg || "Validation failed";
       } else if (data && typeof data === "object" && data.msg) {
         description = data.msg;

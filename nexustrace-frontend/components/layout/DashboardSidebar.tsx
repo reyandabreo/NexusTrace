@@ -156,7 +156,7 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
         <div className="px-3 pb-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted">
+              <button className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted" suppressHydrationWarning>
                 <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span className="flex-1 truncate text-xs font-medium text-foreground">
                   {selectedCase ? getCaseName(selectedCase) : "Select case..."}

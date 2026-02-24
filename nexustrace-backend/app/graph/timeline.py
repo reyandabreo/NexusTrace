@@ -68,11 +68,10 @@ class TimelineService:
         query = """
         MATCH (c:Case {case_id: $case_id})
         MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)-[:HAS_CHUNK]->(ch:Chunk)
-        WHERE ch.timestamp IS NOT NULL
         OPTIONAL MATCH (ch)-[:MENTIONS]->(ent:Entity)
         WITH ch, e, 
              COLLECT(DISTINCT ent.name) as entity_names,
-             ch.timestamp as ts,
+             COALESCE(ch.timestamp, e.uploaded_at) as ts,
              ch.risk_score as risk
         RETURN ch.chunk_id as chunk_id, 
                ts as timestamp,
@@ -96,8 +95,13 @@ class TimelineService:
             # Create description (truncate if too long)
             description = text[:200] + "..." if len(text) > 200 else text
             
-            # Parse timestamp
-            timestamp_iso = self._parse_timestamp(record["timestamp"])
+            # Parse timestamp - if no timestamp, use current time
+            timestamp_value = record["timestamp"]
+            if timestamp_value:
+                timestamp_iso = self._parse_timestamp(timestamp_value)
+            else:
+                # Fallback to current time if no timestamp available
+                timestamp_iso = datetime.now().isoformat() + 'Z'
             
             # Calculate risk score
             risk_score = record["risk_score"] if record["risk_score"] is not None else 0.0

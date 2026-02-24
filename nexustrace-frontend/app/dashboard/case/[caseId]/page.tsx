@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useCase, useNetworkGraph, useEntities, usePrioritized, useUpdateCase } from "@/hooks/useCases";
 import { useEvidenceList } from "@/hooks/useUpload";
+import { useQueryHistory } from "@/hooks/useRag";
 import { useCaseStore } from "@/store/caseStore";
 import { useActivityStore } from "@/store/activityStore";
+import { useAuthStore } from "@/store/authStore";
 import { getCaseName, formatCaseStatus } from "@/lib/caseUtils";
 import EvidenceUpload from "@/components/evidence/EvidenceUpload";
 import EvidenceList from "@/components/evidence/EvidenceList";
@@ -37,6 +39,8 @@ import {
   BarChart3,
   Shield,
   CheckCircle,
+  MessageSquare,
+  ChevronRight,
 } from "lucide-react";
 
 const statusColor: Record<string, string> = {
@@ -53,35 +57,48 @@ export default function CaseOverviewPage() {
   const { data: evidence } = useEvidenceList(caseId);
   const { data: entities } = useEntities(caseId);
   const { data: prioritized } = usePrioritized(caseId);
+  const { data: queryHistory } = useQueryHistory(caseId);
   const updateCase = useUpdateCase();
   const addActivity = useActivityStore((s) => s.addActivity);
+  const user = useAuthStore((s) => s.user);
   const trackedCaseRef = useRef<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   
   // Track case view only once per case
   useEffect(() => {
-    if (caseData && trackedCaseRef.current !== caseId) {
+    if (caseData && trackedCaseRef.current !== caseId && user) {
       trackedCaseRef.current = caseId;
       addActivity({
         type: "view",
         action: `Viewed case: ${getCaseName(caseData)}`,
         target: caseId,
+        userId: user.id,
       });
     }
-  }, [caseData, caseId, addActivity]);
+  }, [caseData, caseId, addActivity, user]);
   
   // Filter prioritized data to get valid leads (exclude chunks)
   const validLeads = prioritized?.filter((item: any) => item.entity && item.entity_type) || [];
 
   const handleCloseCase = async () => {
+    if (!user) return;
+    
     setIsClosing(true);
     try {
       await updateCase.mutateAsync({
         caseId,
         data: { status: "closed" },
       });
-      // Optionally redirect to all cases after closing
-      // router.push("/dashboard/cases");
+      
+      addActivity({
+        type: "update",
+        action: `Closed case: ${getCaseName(caseData)}`,
+        target: caseId,
+        userId: user.id,
+      });
+    } catch (error) {
+      console.error("Failed to close case:", error);
+      // Error will be shown by the mutation's onError handler
     } finally {
       setIsClosing(false);
     }
@@ -133,6 +150,7 @@ export default function CaseOverviewPage() {
                 <Button
                   variant="outline"
                   className="gap-2 border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e]/10"
+                  suppressHydrationWarning
                 >
                   <CheckCircle className="h-4 w-4" />
                   Close Case
@@ -227,7 +245,7 @@ export default function CaseOverviewPage() {
       </div>
 
       {/* Evidence Section */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 mb-8">
         <div>
           <h2 className="mb-4 text-lg font-semibold text-foreground">
             Upload Evidence
@@ -240,6 +258,83 @@ export default function CaseOverviewPage() {
           </h2>
           <EvidenceList caseId={caseId} />
         </div>
+      </div>
+
+      {/* AI Assistant Section */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <MessageSquare className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">
+            AI Assistant Query History
+          </h2>
+        </div>
+        
+        {queryHistory && queryHistory.length > 0 ? (
+          <div className="space-y-3">
+            {queryHistory.map((query: any) => (
+              <Card key={query.query_id} className="border-border bg-card hover:bg-accent/5 transition-colors">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <p className="font-medium text-foreground text-sm">
+                          {query.question}
+                        </p>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap" suppressHydrationWarning>
+                          {new Date(query.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      {query.answer && (
+                        <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                          {query.answer}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <FileText className="h-3 w-3" />
+                          {query.chunks_retrieved || 0} chunks retrieved
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-primary hover:text-primary"
+                          onClick={() => router.push(`/dashboard/case/${caseId}/rag?queryId=${query.query_id}`)}
+                        >
+                          View in RAG
+                          <ChevronRight className="h-3 w-3 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-border bg-card">
+            <CardContent className="p-8 text-center">
+              <MessageSquare className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground mb-1">
+                No queries yet
+              </p>
+              <p className="text-xs text-muted-foreground/70 mb-4">
+                Start asking questions to the AI assistant in the RAG section
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/case/${caseId}/rag`)}
+                className="gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Go to RAG Assistant
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

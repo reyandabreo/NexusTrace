@@ -226,9 +226,9 @@ export default function AnalyticsPage() {
           <CardContent className="flex items-center gap-4 p-5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f59e0b]/10">
               <Brain className="h-5 w-5 text-[#f59e0b]" />
-            </div>{totalQueries}
+            </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">--</p>
+              <p className="text-2xl font-bold text-foreground">{totalQueries}</p>
               <p className="text-xs text-muted-foreground">AI Queries Run</p>
             </div>
           </CardContent>

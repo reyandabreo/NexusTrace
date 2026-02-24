@@ -26,26 +26,60 @@ class IngestionService:
         text = await parse_file(file, file_ext)
         evidence_id = str(uuid.uuid4())
         
+        print(f"Processing evidence: {filename} (ID: {evidence_id}) for case: {case_id}")
+        
         # 2. Create Evidence Node
-        self.graph_builder.create_evidence_node(self.user_id, case_id, evidence_id, filename, file_ext)
+        try:
+            self.graph_builder.create_evidence_node(self.user_id, case_id, evidence_id, filename, file_ext)
+            print(f"Created evidence node: {evidence_id}")
+        except Exception as e:
+            print(f"ERROR creating evidence node: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to create evidence: {str(e)}")
         
         # 3. Chunking
         chunks = chunk_text(text, evidence_id)
+        print(f"Created {len(chunks)} chunks from evidence")
         
         # 4. Processing Chunks
-        for chunk in chunks:
+        for idx, chunk in enumerate(chunks):
             chunk_id = str(uuid.uuid4())
             chunk["chunk_id"] = chunk_id
             
             # AI Triage
             chunk_text_str = chunk["text"]
-            entities = extract_entities(chunk_text_str)
-            risk_score = calculate_risk_score(chunk_text_str, chunk)
-            embedding = get_embedding(chunk_text_str)
+            print(f"Processing chunk {idx + 1}/{len(chunks)} (ID: {chunk_id})")
+            
+            try:
+                entities = extract_entities(chunk_text_str)
+                print(f"  - Extracted {len(entities)} entities")
+            except Exception as e:
+                print(f"ERROR extracting entities from chunk {chunk_id}: {e}")
+                entities = []
+            
+            try:
+                risk_score = calculate_risk_score(chunk_text_str, chunk)
+                print(f"  - Calculated risk score: {risk_score}")
+            except Exception as e:
+                print(f"ERROR calculating risk score for chunk {chunk_id}: {e}")
+                risk_score = 0.0
+            
+            try:
+                embedding = get_embedding(chunk_text_str)
+                print(f"  - Generated embedding")
+            except Exception as e:
+                print(f"ERROR generating embedding for chunk {chunk_id}: {e}")
+                embedding = []
             
             # 5. Store in Graph
-            self.graph_builder.store_chunk(self.user_id, case_id, chunk, embedding, risk_score, entities)
+            try:
+                self.graph_builder.store_chunk(self.user_id, case_id, chunk, embedding, risk_score, entities)
+                print(f"  - Stored chunk with {len(entities)} entities")
+            except Exception as e:
+                print(f"ERROR storing chunk {chunk_id}: {e}")
+                # Continue processing other chunks
+                continue
             
+        print(f"Completed processing evidence {evidence_id}: {len(chunks)} chunks processed")
         return {"status": "processed", "evidence_id": evidence_id, "chunks": len(chunks)}
 
     def get_evidence(self, evidence_id: str):

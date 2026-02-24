@@ -189,8 +189,15 @@ function NetworkGraphView({
   useEffect(() => {
     if (initialNodes.length > 0) {
       setNodes(initialNodes);
-      // Fit view after a short delay to ensure nodes are rendered
-      setTimeout(() => fitView({ padding: 0.2, duration: 800 }), 100);
+      // Fit view after a short delay to ensure nodes are rendered with generous padding
+      setTimeout(() => {
+        fitView({ 
+          padding: 0.5,  // Much more padding to see entire graph
+          duration: 1000,
+          minZoom: 0.1,   // Allow zooming out very far
+          maxZoom: 1.5,   // Allow zooming in reasonably
+        });
+      }, 150);
     }
   }, [initialNodes, setNodes, fitView]);
 
@@ -208,6 +215,21 @@ function NetworkGraphView({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       fitView
+      fitViewOptions={{
+        padding: 0.5,
+        minZoom: 0.1,
+        maxZoom: 1.5,
+      }}
+      minZoom={0.05}   // Can zoom out extremely far to see huge graphs
+      maxZoom={2}      // Can zoom in for details
+      nodesDraggable={true}
+      nodesConnectable={false}
+      elementsSelectable={true}
+      zoomOnScroll={true}
+      zoomOnPinch={true}
+      panOnScroll={false}
+      panOnDrag={true}
+      preventScrolling={true}
       proOptions={{ hideAttribution: true }}
     >
       <Background color="#1f2335" gap={20} />
@@ -276,7 +298,7 @@ export default function NetworkPage() {
           </p>
         </div>
       ) : (
-        <div className="h-150 rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="rounded-2xl border border-border bg-card overflow-hidden" style={{ height: "calc(100vh - 250px)", minHeight: "700px" }}>
           <ReactFlowProvider>
             <NetworkGraphView 
               initialNodes={initialNodes} 

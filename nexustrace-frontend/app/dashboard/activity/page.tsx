@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { useState, useMemo } from "react";
 import { useActivityStore } from "@/store/activityStore";
+import { useAuthStore } from "@/store/authStore";
 
 const typeConfig = {
   case: { icon: FolderOpen, color: "text-primary", bg: "bg-primary/10", badge: "Case" },
@@ -57,9 +58,15 @@ export default function ActivityLogPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const allActivities = useActivityStore((s) => s.activities);
+  const user = useAuthStore((s) => s.user);
   
-  // Memoize the sliced activities to avoid re-creating array on every render
-  const activities = useMemo(() => allActivities.slice(0, 50), [allActivities]);
+  // Filter activities by current user and limit to 50
+  const activities = useMemo(() => {
+    if (!user) return [];
+    return allActivities
+      .filter((activity) => activity.userId === user.id)
+      .slice(0, 50);
+  }, [allActivities, user]);
 
   const filtered = activities.filter((a) => {
     const matchesSearch =
@@ -95,7 +102,7 @@ export default function ActivityLogPage() {
           />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="h-9 w-40 border-border bg-muted/50 text-sm">
+          <SelectTrigger className="h-9 w-40 border-border bg-muted/50 text-sm" suppressHydrationWarning>
             <Filter className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
             <SelectValue placeholder="All types" />
           </SelectTrigger>

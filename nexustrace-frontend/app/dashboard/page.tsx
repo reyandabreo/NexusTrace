@@ -21,6 +21,7 @@ import { useQueries } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { useCaseStore } from "@/store/caseStore";
+import { useActivityStore } from "@/store/activityStore";
 import { getCaseId, getCaseName, formatCaseStatus } from "@/lib/caseUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,7 @@ export default function DashboardPage() {
   const createCase = useCreateCase();
   const user = useAuthStore((s) => s.user);
   const setCurrentCase = useCaseStore((s) => s.setCurrentCase);
+  const activities = useActivityStore((s) => s.activities);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -167,6 +169,11 @@ export default function DashboardPage() {
 
   // Compute stats from cases data
   const activeCases = cases?.filter((c) => (c.status || "open") !== "closed").length || 0;
+  
+  // Count AI queries from activities
+  const totalAIQueries = useMemo(() => {
+    return activities.filter((activity) => activity.type === "query").length;
+  }, [activities]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -187,11 +194,11 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="mb-6 sm:mb-8 grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => {
-          let value: string | number = "--";
+          let value: string | number = 0;
           if (stat.key === "active") value = activeCases;
           else if (stat.key === "evidence") value = totalEvidence;
           else if (stat.key === "alerts") value = highRiskAlerts;
-          else if (stat.key === "queries") value = "--";
+          else if (stat.key === "queries") value = totalAIQueries;
 
           return (
             <Card key={stat.key} className="border-border bg-card">
@@ -217,7 +224,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-2 sm:gap-3">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2 border-border bg-muted/30 hover:bg-muted text-xs sm:text-sm">
+              <Button variant="outline" className="gap-2 border-border bg-muted/30 hover:bg-muted text-xs sm:text-sm" suppressHydrationWarning>
                 <Plus className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">New Case</span>
                 <span className="sm:hidden">New</span>

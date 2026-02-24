@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { MessageSquare, Send, Bot, User, Loader2 } from "lucide-react";
-import { useRagAsk } from "@/hooks/useRag";
+import { useRagAsk, useQueryHistory } from "@/hooks/useRag";
 import { useActivityStore } from "@/store/activityStore";
+import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,9 +14,13 @@ import type { ChatMessage as ChatMessageType } from "@/types/rag";
 
 export default function RagPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const queryId = searchParams.get('queryId');
   const caseId = params?.caseId as string;
   const ragAsk = useRagAsk();
+  const { data: queryHistory } = useQueryHistory(caseId);
   const addActivity = useActivityStore((s) => s.addActivity);
+  const user = useAuthStore((s) => s.user);
   const [messages, setMessages] = useState<ChatMessageType[]>([
     {
       id: "welcome",
@@ -27,6 +32,36 @@ export default function RagPage() {
   ]);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load specific query from URL params
+  useEffect(() => {
+    if (queryId && queryHistory) {
+      const query = queryHistory.find((q: any) => q.query_id === queryId);
+      if (query) {
+        const userMsg: ChatMessageType = {
+          id: `user-${query.query_id}`,
+          role: "user",
+          content: query.question,
+          timestamp: new Date(query.timestamp),
+        };
+        
+        const assistantMsg: ChatMessageType = {
+          id: `assistant-${query.query_id}`,
+          role: "assistant",
+          content: query.answer || "No answer available",
+          query_id: query.query_id,
+          timestamp: new Date(query.timestamp),
+        };
+        
+        setMessages((prev) => {
+          // Only add if not already present
+          const hasQuery = prev.some(m => m.id === userMsg.id);
+          if (hasQuery) return prev;
+          return [...prev, userMsg, assistantMsg];
+        });
+      }
+    }
+  }, [queryId, queryHistory]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,6 +90,7 @@ export default function RagPage() {
       addActivity({
         type: "query",
         action: `Asked AI: "${input.trim().substring(0, 50)}${input.trim().length > 50 ? '...' : ''}"`,
+        userId: user?.id || 'unknown',
         target: `Case ${caseId}`,
       });
 

@@ -7,13 +7,14 @@ export interface Activity {
   action: string;
   target: string;
   timestamp: string;
-  userId?: string;
+  userId: string;
 }
 
 interface ActivityStore {
   activities: Activity[];
   addActivity: (activity: Omit<Activity, "id" | "timestamp">) => void;
   clearActivities: () => void;
+  getUserActivities: (userId: string) => Activity[];
 }
 
 export const useActivityStore = create<ActivityStore>()(
@@ -34,6 +35,10 @@ export const useActivityStore = create<ActivityStore>()(
       },
       
       clearActivities: () => set({ activities: [] }),
+      
+      getUserActivities: (userId: string) => {
+        return get().activities.filter((activity) => activity.userId === userId);
+      },
     }),
     {
       name: "activity-storage",

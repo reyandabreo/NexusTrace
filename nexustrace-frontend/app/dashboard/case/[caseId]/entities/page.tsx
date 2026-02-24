@@ -80,7 +80,7 @@ export default function EntitiesPage() {
           />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-40 border-border bg-card text-foreground">
+          <SelectTrigger className="w-40 border-border bg-card text-foreground" suppressHydrationWarning>
             <SelectValue placeholder="Filter type" />
           </SelectTrigger>
           <SelectContent className="border-border bg-card">

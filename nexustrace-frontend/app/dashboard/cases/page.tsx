@@ -99,7 +99,7 @@ export default function AllCasesPage() {
           {(activeTab === "all" || activeTab === "open") && (
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2 rounded-xl w-full sm:w-auto">
+                <Button className="gap-2 rounded-xl w-full sm:w-auto" suppressHydrationWarning>
                   <Plus className="h-4 w-4" />
                   New Case
                 </Button>

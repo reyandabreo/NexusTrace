@@ -175,6 +175,14 @@ export function useLogout() {
     }
     
     logout();
+    
+    // Clear user-specific data from localStorage
+    if (typeof window !== "undefined") {
+      // Clear activity and audit logs for privacy
+      localStorage.removeItem("activity-storage");
+      localStorage.removeItem("audit-storage");
+    }
+    
     toast.success("Logged out");
     router.push("/login");
   };

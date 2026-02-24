@@ -87,6 +87,7 @@ class CaseService:
         query = f"""
         MATCH (u:User {{id: $user_id}})-[:CREATED]->(c:Case {{case_id: $case_id}})
         SET {", ".join(set_clauses)}
+        WITH c
         OPTIONAL MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)
         WITH c, COUNT(DISTINCT e) as evidence_count
         RETURN c.case_id as case_id, c.name as name, c.description as description,

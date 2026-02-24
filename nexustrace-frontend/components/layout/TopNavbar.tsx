@@ -113,7 +113,10 @@ export default function TopNavbar({ onMenuClick }: TopNavbarProps) {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-xl px-2 py-1 transition-colors hover:bg-muted">
+              <button 
+                className="flex items-center gap-2 rounded-xl px-2 py-1 transition-colors hover:bg-muted"
+                suppressHydrationWarning
+              >
                 <Avatar className="h-7 w-7 border border-primary/30">
                   <AvatarFallback className="bg-primary/20 text-[10px] font-semibold text-primary">
                     {initials}

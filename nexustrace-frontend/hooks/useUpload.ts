@@ -4,12 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useActivityStore } from "@/store/activityStore";
+import { useAuthStore } from "@/store/authStore";
 import { useAuditLogger } from "@/store/auditStore";
 import type { Evidence } from "@/types/case";
 
 export function useUploadEvidence() {
   const queryClient = useQueryClient();
   const addActivity = useActivityStore((s) => s.addActivity);
+  const user = useAuthStore((s) => s.user);
   const { logAction } = useAuditLogger();
 
   return useMutation({
@@ -38,6 +40,7 @@ export function useUploadEvidence() {
       addActivity({
         type: "evidence",
         action: `Uploaded evidence: ${variables.file.name}`,
+        userId: user?.id || 'unknown',
         target: `Case ${variables.caseId}`,
       });
       

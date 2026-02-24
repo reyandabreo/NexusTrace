@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useAuditStore, AuditAction } from "@/store/auditStore";
+import { useAuthStore } from "@/store/authStore";
 
 const actionIcons: Record<AuditAction, React.ComponentType<any>> = {
   LOGIN: LogIn,
@@ -92,6 +93,7 @@ function formatTime(ts: string) {
 
 export default function AuditTrailPage() {
   const { entries, exportAuditLogs, addAuditLog } = useAuditStore();
+  const user = useAuthStore((s) => s.user);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionFilter, setActionFilter] = useState("all");
@@ -185,7 +187,10 @@ export default function AuditTrailPage() {
     }
   }, []);
 
-  const filtered = entries.filter((entry) => {
+  // Filter entries by current user
+  const userEntries = user ? entries.filter((entry) => entry.userId === user.id) : [];
+
+  const filtered = userEntries.filter((entry) => {
     const matchesSearch =
       !search.trim() ||
       entry.user.toLowerCase().includes(search.toLowerCase()) ||
@@ -318,7 +323,7 @@ export default function AuditTrailPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:flex-wrap">
           <div className="flex flex-wrap gap-2">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-10 w-40 border-border bg-card text-sm text-foreground hover:bg-muted/50">
+              <SelectTrigger className="h-10 w-40 border-border bg-card text-sm text-foreground hover:bg-muted/50" suppressHydrationWarning>
                 <Filter className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
                 <SelectValue placeholder="Status" className="text-foreground" />
               </SelectTrigger>
@@ -329,7 +334,7 @@ export default function AuditTrailPage() {
               </SelectContent>
             </Select>
             <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="h-10 w-40 border-border bg-card text-sm text-foreground hover:bg-muted/50">
+              <SelectTrigger className="h-10 w-40 border-border bg-card text-sm text-foreground hover:bg-muted/50" suppressHydrationWarning>
                 <Activity className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
                 <SelectValue placeholder="Action" className="text-foreground" />
               </SelectTrigger>
@@ -344,7 +349,7 @@ export default function AuditTrailPage() {
               </SelectContent>
             </Select>
             <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="h-10 w-38.75 border-border bg-card text-sm text-foreground hover:bg-muted/50">
+              <SelectTrigger className="h-10 w-38.75 border-border bg-card text-sm text-foreground hover:bg-muted/50" suppressHydrationWarning>
                 <Calendar className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
                 <SelectValue placeholder="Date" className="text-foreground" />
               </SelectTrigger>

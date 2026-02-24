@@ -40,3 +40,12 @@ export interface FeedbackRequest {
   is_correct: boolean;
   comment?: string;
 }
+
+export interface QueryHistory {
+  query_id: string;
+  case_id: string;
+  question: string;
+  answer: string | null;
+  timestamp: number;
+  chunks_retrieved: number;
+}

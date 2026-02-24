@@ -124,6 +124,7 @@ export default function ChatMessage({
       {/* Timestamp */}
       <p
         className={`text-[10px] text-muted-foreground ${isAssistant ? "ml-11" : "mr-11 text-right"}`}
+        suppressHydrationWarning
       >
         {message.timestamp.toLocaleTimeString([], {
           hour: "2-digit",
