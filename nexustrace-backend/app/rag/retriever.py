@@ -11,17 +11,16 @@ class Retriever:
         question_embedding = get_embedding(question)
         
         # 2. Vector Search using manual cosine similarity
-        # Manual cosine similarity calculation that works without GDS library
         vector_query = """
-        MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(:Evidence)-[:HAS_CHUNK]->(ch:Chunk)
+        MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(ev:Evidence)-[:HAS_CHUNK]->(ch:Chunk)
         WHERE ch.embedding IS NOT NULL
-        WITH ch, 
+        WITH ch, ev,
              reduce(dot = 0.0, i IN range(0, size(ch.embedding)-1) | dot + ch.embedding[i] * $embedding[i]) as dotProduct,
              reduce(norm1 = 0.0, i IN range(0, size(ch.embedding)-1) | norm1 + ch.embedding[i] * ch.embedding[i]) as norm1,
              reduce(norm2 = 0.0, i IN range(0, size($embedding)-1) | norm2 + $embedding[i] * $embedding[i]) as norm2
-        WITH ch, dotProduct / (sqrt(norm1) * sqrt(norm2)) AS score
+        WITH ch, ev, dotProduct / (sqrt(norm1) * sqrt(norm2)) AS score
         WHERE score > 0.3
-        RETURN ch, score
+        RETURN ch, ev.filename as filename, ev.evidence_id as evidence_id, score
         ORDER BY score DESC
         LIMIT $top_k
         """
@@ -41,7 +40,12 @@ class Retriever:
                 "chunk_id": node["chunk_id"],
                 "text": node["text"],
                 "score": record["score"],
-                "source": "vector"
+                "source": "vector",
+                "filename": record.get("filename") or node.get("filename", "Unknown"),
+                "evidence_id": record.get("evidence_id", ""),
+                "page_number": node.get("page_number"),
+                "file_type": node.get("file_type", ""),
+                "chunk_index": node.get("chunk_index", 0),
             })
         
         print(f"DEBUG: Found {len(vector_chunks)} chunks via vector search")
@@ -63,15 +67,15 @@ class Retriever:
                     print(f"DEBUG: Chunks exist but similarity scores too low. Lowering threshold...")
                     # Try again with lower threshold
                     low_threshold_query = """
-                    MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(e:Evidence)-[:HAS_CHUNK]->(ch:Chunk)
+                    MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(ev:Evidence)-[:HAS_CHUNK]->(ch:Chunk)
                     WHERE ch.embedding IS NOT NULL
-                    WITH ch, 
+                    WITH ch, ev,
                          reduce(dot = 0.0, i IN range(0, size(ch.embedding)-1) | dot + ch.embedding[i] * $embedding[i]) as dotProduct,
                          reduce(norm1 = 0.0, i IN range(0, size(ch.embedding)-1) | norm1 + ch.embedding[i] * ch.embedding[i]) as norm1,
                          reduce(norm2 = 0.0, i IN range(0, size($embedding)-1) | norm2 + $embedding[i] * $embedding[i]) as norm2
-                    WITH ch, dotProduct / (sqrt(norm1) * sqrt(norm2)) AS score
+                    WITH ch, ev, dotProduct / (sqrt(norm1) * sqrt(norm2)) AS score
                     WHERE score > 0.1
-                    RETURN ch, score
+                    RETURN ch, ev.filename as filename, ev.evidence_id as evidence_id, score
                     ORDER BY score DESC
                     LIMIT $top_k
                     """
@@ -85,7 +89,12 @@ class Retriever:
                             "chunk_id": node["chunk_id"],
                             "text": node["text"],
                             "score": record["score"],
-                            "source": "vector"
+                            "source": "vector",
+                            "filename": record.get("filename") or node.get("filename", "Unknown"),
+                            "evidence_id": record.get("evidence_id", ""),
+                            "page_number": node.get("page_number"),
+                            "file_type": node.get("file_type", ""),
+                            "chunk_index": node.get("chunk_index", 0),
                         })
                     print(f"DEBUG: Found {len(vector_chunks)} chunks with lower threshold")
             
@@ -101,7 +110,8 @@ class Retriever:
             WHERE start.chunk_id IN $chunk_ids
             AND neighbor.case_id = $case_id
             AND NOT neighbor.chunk_id IN $chunk_ids
-            RETURN neighbor, count(e) as shared_entities, collect(e.name) as entities
+            OPTIONAL MATCH (ev:Evidence)-[:HAS_CHUNK]->(neighbor)
+            RETURN neighbor, ev.filename as filename, ev.evidence_id as evidence_id, count(e) as shared_entities, collect(e.name) as entities
             ORDER BY shared_entities DESC
             LIMIT 5
             """
@@ -114,7 +124,12 @@ class Retriever:
                      "text": node["text"],
                      "score": 0.0, # Indirect
                      "source": "graph",
-                     "shared_entities": record["entities"]
+                     "shared_entities": record["entities"],
+                     "filename": record.get("filename") or node.get("filename", "Unknown"),
+                     "evidence_id": record.get("evidence_id", ""),
+                     "page_number": node.get("page_number"),
+                     "file_type": node.get("file_type", ""),
+                     "chunk_index": node.get("chunk_index", 0),
                  })
                  
         return vector_chunks + expanded_chunks

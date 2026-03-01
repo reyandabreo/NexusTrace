@@ -56,7 +56,18 @@ def extract_timestamp(text: str) -> str:
     
     return None
 
-def chunk_text(text: str, evidence_id: str) -> List[Dict[str, Any]]:
+def chunk_text(text: str, evidence_id: str, metadata: dict = None) -> List[Dict[str, Any]]:
+    """
+    Chunk text with enriched metadata.
+    
+    Args:
+        text: The raw text to chunk
+        evidence_id: ID of the evidence 
+        metadata: Optional dict with keys like filename, file_type, pages, total_pages
+    """
+    if metadata is None:
+        metadata = {}
+    
     tokens = text.split()  # Simple whitespace tokenization for speed/simplicity
     chunk_size = settings.MAX_CHUNK_TOKENS
     overlap = settings.CHUNK_OVERLAP
@@ -74,12 +85,28 @@ def chunk_text(text: str, evidence_id: str) -> List[Dict[str, Any]]:
         
         # Extract timestamp from chunk text
         timestamp = extract_timestamp(chunk_text_str)
+        
+        # Determine page number for PDF chunks
+        page_number = None
+        if metadata.get("pages"):
+            # Estimate which page this chunk came from based on character position
+            char_position = len(" ".join(tokens[:start]))
+            cumulative = 0
+            for pg_num, pg_text in metadata["pages"].items():
+                cumulative += len(pg_text)
+                if char_position < cumulative:
+                    page_number = pg_num
+                    break
 
         chunks.append({
             "chunk_index": chunk_index,
             "text": chunk_text_str,
             "timestamp": timestamp,
-            "evidence_id": evidence_id
+            "evidence_id": evidence_id,
+            "filename": metadata.get("filename", ""),
+            "file_type": metadata.get("file_type", ""),
+            "page_number": page_number,
+            "total_pages": metadata.get("total_pages"),
         })
         
         chunk_index += 1

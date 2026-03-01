@@ -12,3 +12,6 @@ sentence-transformers
 spacy
 pypdf
 openai
+pytesseract
+Pillow
+python-docx

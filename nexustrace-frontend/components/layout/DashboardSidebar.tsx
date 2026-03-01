@@ -186,7 +186,7 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
               ))}
               <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem asChild>
-                <Link href="/dashboard" className="gap-2 text-xs text-muted-foreground">
+                <Link href="/dashboard/cases?create=true" className="gap-2 text-xs text-muted-foreground" onClick={onNavigate}>
                   <PlusCircle className="h-3 w-3" />
                   Create New Case
                 </Link>

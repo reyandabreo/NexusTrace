@@ -4,13 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { MessageSquare, Send, Bot, User, Loader2 } from "lucide-react";
 import { useRagAsk, useQueryHistory } from "@/hooks/useRag";
-import { useActivityStore } from "@/store/activityStore";
-import { useAuthStore } from "@/store/authStore";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatMessage from "@/components/rag/ChatMessage";
-import type { ChatMessage as ChatMessageType } from "@/types/rag";
+import type { ChatMessage as ChatMessageType, ChatHistoryMessage } from "@/types/rag";
 
 export default function RagPage() {
   const params = useParams();
@@ -19,8 +18,6 @@ export default function RagPage() {
   const caseId = params?.caseId as string;
   const ragAsk = useRagAsk();
   const { data: queryHistory } = useQueryHistory(caseId);
-  const addActivity = useActivityStore((s) => s.addActivity);
-  const user = useAuthStore((s) => s.user);
   const [messages, setMessages] = useState<ChatMessageType[]>([
     {
       id: "welcome",
@@ -81,17 +78,16 @@ export default function RagPage() {
     setInput("");
 
     try {
+      // Build chat history from existing messages (last 6 messages = 3 turns)
+      const chatHistory: ChatHistoryMessage[] = messages
+        .filter((m) => m.role === "user" || (m.role === "assistant" && m.id !== "welcome"))
+        .slice(-6)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       const response = await ragAsk.mutateAsync({
         question: input.trim(),
         case_id: caseId,
-      });
-
-      // Track activity
-      addActivity({
-        type: "query",
-        action: `Asked AI: "${input.trim().substring(0, 50)}${input.trim().length > 50 ? '...' : ''}"`,
-        userId: user?.id || 'unknown',
-        target: `Case ${caseId}`,
+        chat_history: chatHistory.length > 0 ? chatHistory : undefined,
       });
 
       const assistantMsg: ChatMessageType = {
@@ -101,6 +97,7 @@ export default function RagPage() {
         query_id: response.query_id,
         cited_chunks: response.cited_chunks,
         sources: response.sources,
+        confidence: response.confidence_score,
         timestamp: new Date(),
       };
 
@@ -114,6 +111,9 @@ export default function RagPage() {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMsg]);
+      toast.error("AI query failed", {
+        description: "Could not process your question. Please try again.",
+      });
     }
   };
 

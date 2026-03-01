@@ -11,6 +11,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useCases } from "@/hooks/useCases";
+import { useDebounce } from "@/hooks/useDebounce";
 import { getCaseId, getCaseName, formatCaseStatus } from "@/lib/caseUtils";
 import {
   Dialog,
@@ -28,6 +29,7 @@ interface GlobalSearchProps {
 
 export default function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const router = useRouter();
   const { data: cases } = useCases();
 
@@ -49,14 +51,14 @@ export default function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) 
   }, [open]);
 
   const filteredCases = useMemo(() => {
-    if (!cases || !query.trim()) return cases || [];
-    const q = query.toLowerCase();
+    if (!cases || !debouncedQuery.trim()) return cases || [];
+    const q = debouncedQuery.toLowerCase();
     return cases.filter(
       (c) =>
         getCaseName(c).toLowerCase().includes(q) ||
         c.description.toLowerCase().includes(q)
     );
-  }, [cases, query]);
+  }, [cases, debouncedQuery]);
 
   const recentItems = [
     { label: "View all cases", href: "/dashboard", icon: FolderOpen },

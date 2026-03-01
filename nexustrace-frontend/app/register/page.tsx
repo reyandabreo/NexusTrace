@@ -27,8 +27,28 @@ export default function RegisterPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim()) {
+      toast.error("Username required", {
+        description: "Please enter a username",
+      });
+      return;
+    }
+    if (!email.trim()) {
+      toast.error("Email required", {
+        description: "Please enter your email address",
+      });
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("Password too short", {
+        description: "Password must be at least 8 characters",
+      });
+      return;
+    }
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error("Passwords do not match", {
+        description: "Please make sure both passwords are the same",
+      });
       return;
     }
     register.mutate({ username, email, password });

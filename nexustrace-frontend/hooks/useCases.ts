@@ -14,6 +14,7 @@ export function useCases() {
       const res = await api.get("/cases");
       return res.data;
     },
+    staleTime: 3 * 60 * 1000, // 3 minutes - cases list changes moderately
   });
 }
 
@@ -25,6 +26,7 @@ export function useCase(caseId: string) {
       return res.data;
     },
     enabled: !!caseId,
+    staleTime: 2 * 60 * 1000, // 2 minutes - individual case can update frequently
   });
 }
 
@@ -117,6 +119,41 @@ export function useUpdateCase() {
       }
       
       toast.error("Failed to update case", { description });
+    },
+  });
+}
+
+export function useDeleteCase() {
+  const queryClient = useQueryClient();
+  const addActivity = useActivityStore((s) => s.addActivity);
+  const user = useAuthStore((s) => s.user);
+
+  return useMutation({
+    mutationFn: async (caseId: string) => {
+      const res = await api.delete(`/cases/${caseId}`);
+      return res.data;
+    },
+    onSuccess: (_data, caseId) => {
+      queryClient.invalidateQueries({ queryKey: ["cases"] });
+      
+      addActivity({
+        type: "delete" as any,
+        action: `Deleted case`,
+        userId: user?.id || 'unknown',
+        target: caseId,
+      });
+      
+      toast.success("Case deleted", {
+        description: "The case has been permanently removed",
+      });
+    },
+    onError: (error: any) => {
+      const data = error.response?.data;
+      let description = "Failed to delete case";
+      if (typeof data?.detail === "string") {
+        description = data.detail;
+      }
+      toast.error("Failed to delete case", { description });
     },
   });
 }

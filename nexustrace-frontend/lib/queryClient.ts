@@ -6,8 +6,13 @@ export function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 60 * 1000, // 1 minute
+        staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh longer
+        gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache longer (formerly cacheTime)
         refetchOnWindowFocus: false,
+        refetchOnReconnect: false, // Don't refetch on network reconnect
+        retry: 1,
+      },
+      mutations: {
         retry: 1,
       },
     },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
+import { useNotificationStore } from "@/store/notificationStore";
 import { useLogout } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,12 @@ export default function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const initials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
@@ -48,33 +55,36 @@ export default function TopNavbar({ onMenuClick }: TopNavbarProps) {
   return (
     <>
       <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-background/80 px-4 sm:px-6 backdrop-blur-xl">
-        {/* Mobile Menu Button */}
-        {onMenuClick && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 lg:hidden"
-            onClick={onMenuClick}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        )}
-        
-        {/* Left: Logo */}
-        <Link href="/dashboard" className="flex items-center gap-2 sm:gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Shield className="h-4.5 w-4.5 text-primary" />
-          </div>
-          <span className="hidden text-base font-bold tracking-tight text-foreground sm:inline">
-            NexusTrace
-          </span>
-          <Badge
-            variant="outline"
-            className="ml-1 border-primary/30 bg-primary/5 px-1.5 py-0 text-[9px] font-medium text-primary hidden sm:inline-flex"
-          >
-            INTEL
-          </Badge>
-        </Link>
+        {/* Left: Menu Button + Logo */}
+        <div className="flex items-center gap-3">
+          {/* Mobile Menu Button */}
+          {onMenuClick && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 lg:hidden"
+              onClick={onMenuClick}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
+          
+          {/* Logo */}
+          <Link href="/dashboard" className="flex items-center gap-2 sm:gap-2.5">
+            <span className="text-sm sm:text-base font-bold tracking-tight text-foreground">
+              NexusTrace
+            </span>
+            <div className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-lg bg-primary/10">
+              <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+            </div>
+            <Badge
+              variant="outline"
+              className="border-primary/30 bg-primary/5 px-1.5 py-0 text-[9px] font-medium text-primary hidden sm:inline-flex"
+            >
+              INTEL
+            </Badge>
+          </Link>
+        </div>
 
         {/* Center: Search Trigger */}
         <button
@@ -104,10 +114,15 @@ export default function TopNavbar({ onMenuClick }: TopNavbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground relative"
             onClick={() => setNotificationsOpen(true)}
           >
             <Bell className="h-4 w-4" />
+            {mounted && unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </Button>
 
           {/* User Menu */}

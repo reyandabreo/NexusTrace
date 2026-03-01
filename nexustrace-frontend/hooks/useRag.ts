@@ -3,13 +3,38 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api from "@/lib/api";
-import type { RagResponse, RagExplanation, FeedbackRequest } from "@/types/rag";
+import { useActivityStore } from "@/store/activityStore";
+import { useAuthStore } from "@/store/authStore";
+import { useNotificationStore } from "@/store/notificationStore";
+import type { RagResponse, RagExplanation, FeedbackRequest, ChatHistoryMessage } from "@/types/rag";
 
 export function useRagAsk() {
+  const addActivity = useActivityStore((s) => s.addActivity);
+  const user = useAuthStore((s) => s.user);
+  const addNotification = useNotificationStore((s) => s.addNotification);
+
   return useMutation({
-    mutationFn: async (data: { question: string; case_id: string }) => {
+    mutationFn: async (data: { question: string; case_id: string; chat_history?: ChatHistoryMessage[] }) => {
       const res = await api.post<RagResponse>("/rag/ask", data);
       return res.data;
+    },
+    onSuccess: (data, variables) => {
+      // Track activity
+      addActivity({
+        type: "query",
+        action: `Asked AI: "${variables.question.substring(0, 50)}${variables.question.length > 50 ? '...' : ''}"`,
+        userId: user?.id || 'unknown',
+        target: `Case ${variables.case_id}`,
+      });
+
+      // Add notification
+      addNotification({
+        type: "success",
+        title: "AI Analysis Completed",
+        description: "Your question has been analyzed and answered",
+        caseId: variables.case_id,
+        actionUrl: `/dashboard/case/${variables.case_id}/rag`,
+      });
     },
     onError: (error: any) => {
       const data = error.response?.data;

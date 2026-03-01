@@ -1,11 +1,41 @@
 "use client";
 
+import { memo } from "react";
 import { FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEvidenceList } from "@/hooks/useUpload";
+import { formatCompactDate } from "@/lib/utils";
 import type { Evidence } from "@/types/case";
+
+// Memoized evidence row to prevent re-renders
+const EvidenceRow = memo(function EvidenceRow({ evidence: e }: { evidence: Evidence }) {
+  return (
+    <div
+      key={e.evidence_id}
+      className="grid grid-cols-3 items-center gap-4 rounded-xl px-3 py-3 transition-colors hover:bg-muted"
+    >
+      <div className="flex items-center gap-2">
+        <FileText className="h-4 w-4 text-primary" />
+        <span className="truncate text-sm font-medium text-foreground">
+          {e.filename}
+        </span>
+      </div>
+      <div>
+        <Badge
+          variant="outline"
+          className="text-[10px] bg-primary/20 text-primary border-primary/30"
+        >
+          {e.file_type.toUpperCase()}
+        </Badge>
+      </div>
+      <span className="text-xs text-muted-foreground truncate">
+        {e.created_at ? formatCompactDate(e.created_at) : 'N/A'}
+      </span>
+    </div>
+  );
+});
 
 export default function EvidenceList({ caseId }: { caseId: string }) {
   const { data: evidence, isLoading, error } = useEvidenceList(caseId);
@@ -63,28 +93,7 @@ export default function EvidenceList({ caseId }: { caseId: string }) {
         {/* Rows */}
         <div className="space-y-1">
           {evidence.map((e) => (
-            <div
-              key={e.evidence_id}
-              className="grid grid-cols-3 items-center gap-4 rounded-xl px-3 py-3 transition-colors hover:bg-muted"
-            >
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" />
-                <span className="truncate text-sm font-medium text-foreground">
-                  {e.filename}
-                </span>
-              </div>
-              <div>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] bg-primary/20 text-primary border-primary/30"
-                >
-                  {e.file_type.toUpperCase()}
-                </Badge>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {e.created_at ? new Date(e.created_at).toLocaleDateString() : 'N/A'}
-              </span>
-            </div>
+            <EvidenceRow key={e.evidence_id} evidence={e} />
           ))}
         </div>
       </CardContent>

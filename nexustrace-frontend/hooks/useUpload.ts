@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { useActivityStore } from "@/store/activityStore";
 import { useAuthStore } from "@/store/authStore";
 import { useAuditLogger } from "@/store/auditStore";
+import { useNotificationStore } from "@/store/notificationStore";
 import type { Evidence } from "@/types/case";
 
 export function useUploadEvidence() {
@@ -13,6 +14,7 @@ export function useUploadEvidence() {
   const addActivity = useActivityStore((s) => s.addActivity);
   const user = useAuthStore((s) => s.user);
   const { logAction } = useAuditLogger();
+  const addNotification = useNotificationStore((s) => s.addNotification);
 
   return useMutation({
     mutationFn: async ({
@@ -51,6 +53,25 @@ export function useUploadEvidence() {
         caseId: variables.caseId,
       });
       
+      // Add notification
+      addNotification({
+        type: "success",
+        title: "Evidence Uploaded Successfully",
+        description: `${variables.file.name} has been uploaded and is being processed`,
+        caseId: variables.caseId,
+        actionUrl: `/dashboard/case/${variables.caseId}`,
+      });
+      
+      // Show processing notification
+      setTimeout(() => {
+        addNotification({
+          type: "processing",
+          title: "Processing Evidence",
+          description: `Extracting entities and analyzing ${variables.file.name}...`,
+          caseId: variables.caseId,
+        });
+      }, 1000);
+      
       toast.success("Evidence uploaded", {
         description: "File has been uploaded and is being processed",
       });
@@ -80,6 +101,14 @@ export function useUploadEvidence() {
         errorMessage: description,
       });
       
+      // Add error notification
+      addNotification({
+        type: "alert",
+        title: "Upload Failed",
+        description: `Could not upload ${variables.file.name}: ${description}`,
+        caseId: variables.caseId,
+      });
+      
       toast.error("Upload failed", { description });
     },
   });
@@ -93,6 +122,7 @@ export function useEvidence(evidenceId: string) {
       return res.data;
     },
     enabled: !!evidenceId,
+    staleTime: 10 * 60 * 1000, // 10 minutes - evidence rarely changes after upload
   });
 }
 
@@ -132,5 +162,6 @@ export function useEvidenceList(caseId: string) {
       return evidenceDetails;
     },
     enabled: !!caseId,
+    staleTime: 1 * 60 * 1000, // 1 minute - evidence list can change as new files are uploaded
   });
 }

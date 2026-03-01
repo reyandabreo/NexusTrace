@@ -14,7 +14,7 @@ import {
   Trash2,
   CalendarDays,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatCompactDate } from "@/lib/utils";
 import { getCaseName, formatCaseStatus } from "@/lib/caseUtils";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,11 @@ const statusColor: Record<string, string> = {
   closed: "border-muted-foreground/30 bg-muted-foreground/10 text-muted-foreground",
 };
 
-export default function CaseSidebar() {
+interface CaseSidebarProps {
+  onClose?: () => void;
+}
+
+export default function CaseSidebar({ onClose }: CaseSidebarProps = {}) {
   const pathname = usePathname();
   const params = useParams();
   const caseId = params?.caseId as string;
@@ -54,6 +58,7 @@ export default function CaseSidebar() {
       <div className="p-3">
         <Link
           href="/dashboard"
+          onClick={onClose}
           className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -81,9 +86,9 @@ export default function CaseSidebar() {
             </Badge>
           )}
           {selectedCase?.created_at && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <CalendarDays className="h-3 w-3" />
-              {new Date(selectedCase.created_at).toLocaleDateString()}
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+              <CalendarDays className="h-3 w-3 shrink-0" />
+              <span className="truncate">{formatCompactDate(selectedCase.created_at)}</span>
             </span>
           )}
         </div>
@@ -103,6 +108,7 @@ export default function CaseSidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={onClose}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                   isActive

@@ -5,6 +5,7 @@ import { usePrioritized } from "@/hooks/useCases";
 import { AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { formatCompactDate } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -130,8 +131,8 @@ export default function PrioritizedPage() {
                     <TableCell className="max-w-50  truncate text-muted-foreground">
                       {lead.reason}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(lead.last_seen).toLocaleDateString()}
+                    <TableCell className="text-muted-foreground truncate">
+                      {formatCompactDate(lead.last_seen)}
                     </TableCell>
                   </TableRow>
                 ))}

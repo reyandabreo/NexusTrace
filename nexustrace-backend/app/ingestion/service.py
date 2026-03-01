@@ -19,11 +19,16 @@ class IngestionService:
         filename = file.filename
         file_ext = filename.split(".")[-1].lower()
         
-        allowed_types = ["json", "csv", "txt", "pdf"]
+        allowed_types = ["json", "csv", "txt", "pdf", "png", "jpg", "jpeg", "gif", "bmp", "tiff", "webp", "docx"]
         if file_ext not in allowed_types:
-            raise HTTPException(status_code=400, detail="Unsupported file type")
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: .{file_ext}. Allowed: {', '.join(allowed_types)}")
             
-        text = await parse_file(file, file_ext)
+        parsed = await parse_file(file, file_ext)
+        
+        # parse_file now returns a dict with text + metadata
+        text = parsed["text"] if isinstance(parsed, dict) else parsed
+        file_metadata = parsed if isinstance(parsed, dict) else {"text": parsed, "file_type": file_ext, "filename": filename}
+        
         evidence_id = str(uuid.uuid4())
         
         print(f"Processing evidence: {filename} (ID: {evidence_id}) for case: {case_id}")
@@ -36,8 +41,8 @@ class IngestionService:
             print(f"ERROR creating evidence node: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to create evidence: {str(e)}")
         
-        # 3. Chunking
-        chunks = chunk_text(text, evidence_id)
+        # 3. Chunking (pass metadata for enrichment)
+        chunks = chunk_text(text, evidence_id, metadata=file_metadata)
         print(f"Created {len(chunks)} chunks from evidence")
         
         # 4. Processing Chunks
@@ -121,3 +126,43 @@ class IngestionService:
                 "uploaded_at": record["uploaded_at"] or ""
             })
         return evidence_list
+
+    def delete_evidence(self, evidence_id: str, case_id: str):
+        """Delete evidence and all associated chunks, entity references, and query links"""
+        # 1. Delete RETRIEVED relationships from queries to chunks of this evidence
+        self.session.run("""
+            MATCH (:Evidence {evidence_id: $evidence_id})-[:HAS_CHUNK]->(ch:Chunk)
+            OPTIONAL MATCH (q:Query)-[r:RETRIEVED]->(ch)
+            DELETE r
+        """, evidence_id=evidence_id)
+        
+        # 2. Delete MENTIONS relationships and orphaned entities
+        self.session.run("""
+            MATCH (:Evidence {evidence_id: $evidence_id})-[:HAS_CHUNK]->(ch:Chunk)
+            OPTIONAL MATCH (ch)-[m:MENTIONS]->(ent:Entity)
+            DELETE m
+            WITH ent
+            WHERE ent IS NOT NULL
+            OPTIONAL MATCH (ent)<-[:MENTIONS]-(other:Chunk)
+            WITH ent, count(other) as remaining
+            WHERE remaining = 0
+            DETACH DELETE ent
+        """, evidence_id=evidence_id)
+        
+        # 3. Delete chunks
+        self.session.run("""
+            MATCH (:Evidence {evidence_id: $evidence_id})-[:HAS_CHUNK]->(ch:Chunk)
+            DETACH DELETE ch
+        """, evidence_id=evidence_id)
+        
+        # 4. Delete evidence node
+        result = self.session.run("""
+            MATCH (e:Evidence {evidence_id: $evidence_id})
+            DETACH DELETE e
+            RETURN count(e) as deleted
+        """, evidence_id=evidence_id)
+        
+        record = result.single()
+        deleted = record["deleted"] if record else 0
+        print(f"Deleted evidence {evidence_id}: {deleted} node(s) removed with all chunks and entity refs")
+        return {"status": "deleted", "evidence_id": evidence_id}

@@ -5,6 +5,8 @@ export interface Case {
   name?: string;
   description: string;
   status?: "open" | "closed" | "in_progress";
+  priority?: "low" | "medium" | "high" | "critical";
+  tags?: string[];
   created_at: string | number;
   updated_at?: string;
   owner_id?: string;
@@ -14,6 +16,8 @@ export interface Case {
 export interface CreateCaseRequest {
   name: string;
   description: string;
+  priority?: "low" | "medium" | "high" | "critical";
+  tags?: string[];
 }
 
 export interface Evidence {

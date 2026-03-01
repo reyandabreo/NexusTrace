@@ -6,6 +6,7 @@ import {
   Shield,
   CheckCircle2,
   X,
+  Loader2,
 } from "lucide-react";
 import {
   Sheet,
@@ -16,39 +17,37 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { useNotificationStore } from "@/store/notificationStore";
+import { useRouter } from "next/navigation";
 
 interface NotificationsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-// Notifications will be fetched from API
-type NotificationType = keyof typeof iconMap;
-
-interface Notification {
-  id: string | number;
-  type: NotificationType;
-  title: string;
-  description?: string;
-  time?: string;
-  read?: boolean;
-}
-
-const notifications: Notification[] = [];
-
 const iconMap = {
   alert: { icon: AlertTriangle, color: "text-[#f59e0b]", bg: "bg-[#f59e0b]/10" },
   evidence: { icon: FileText, color: "text-primary", bg: "bg-primary/10" },
   system: { icon: Shield, color: "text-[#a855f7]", bg: "bg-[#a855f7]/10" },
   success: { icon: CheckCircle2, color: "text-[#22c55e]", bg: "bg-[#22c55e]/10" },
-};
+  processing: { icon: Loader2, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+} as const;
 
 export default function NotificationsDrawer({
   open,
   onOpenChange,
 }: NotificationsDrawerProps) {
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const router = useRouter();
+  const { notifications, markAsRead, markAllAsRead, removeNotification, getUnreadCount } = useNotificationStore();
+  const unreadCount = getUnreadCount();
+
+  const handleNotificationClick = (notification: typeof notifications[0]) => {
+    markAsRead(notification.id);
+    if (notification.actionUrl) {
+      router.push(notification.actionUrl);
+      onOpenChange(false);
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -71,13 +70,16 @@ export default function NotificationsDrawer({
                 </Badge>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-auto px-6 py-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
-            >
-              Mark all read
-            </Button>
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={markAllAsRead}
+                className="h-auto px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+              >
+                Mark all read
+              </Button>
+            )}
           </div>
         </SheetHeader>
 
@@ -90,27 +92,45 @@ export default function NotificationsDrawer({
                 return (
                   <div
                     key={notification.id}
-                    className={`group relative flex gap-3 px-5 py-4 transition-colors hover:bg-muted/50 ${
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`group relative flex gap-3 px-5 py-4 transition-colors ${
+                      notification.actionUrl ? 'cursor-pointer hover:bg-muted/50' : ''
+                    } ${
                       !notification.read ? "bg-primary/5" : ""
                     }`}
                   >
                     <div
                       className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${typeConfig.bg}`}
                     >
-                      <Icon className={`h-4.5 w-4.5 ${typeConfig.color}`} />
+                      <Icon className={`h-4.5 w-4.5 ${typeConfig.color} ${notification.type === 'processing' ? 'animate-spin' : ''}`} />
                     </div>
-                    <div className="flex-1 space-y-1.5">
+                    <div className="flex-1 space-y-1.5 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="text-sm font-semibold text-foreground leading-tight">
                           {notification.title}
                         </h3>
-                        {!notification.read && (
-                          <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                        )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!notification.read && (
+                            <div className="mt-1 h-2 w-2 rounded-full bg-primary" />
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeNotification(notification.id);
+                            }}
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {notification.description}
-                      </p>
+                      {notification.description && (
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {notification.description}
+                        </p>
+                      )}
                       <p className="text-[10px] font-medium text-muted-foreground/70">
                         {notification.time}
                       </p>

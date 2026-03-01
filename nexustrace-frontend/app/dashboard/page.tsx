@@ -17,12 +17,14 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useCases, useCreateCase, useNetworkGraph, usePrioritized } from "@/hooks/useCases";
+import { useQueryHistory } from "@/hooks/useRag";
 import { useQueries } from "@tanstack/react-query";
+import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { useCaseStore } from "@/store/caseStore";
-import { useActivityStore } from "@/store/activityStore";
 import { getCaseId, getCaseName, formatCaseStatus } from "@/lib/caseUtils";
+import { formatCompactDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -89,7 +91,7 @@ export default function DashboardPage() {
   const createCase = useCreateCase();
   const user = useAuthStore((s) => s.user);
   const setCurrentCase = useCaseStore((s) => s.setCurrentCase);
-  const activities = useActivityStore((s) => s.activities);
+  const { data: queryHistory } = useQueryHistory(); // Fetch all queries from database
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -155,6 +157,12 @@ export default function DashboardPage() {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title.trim()) {
+      toast.error("Title required", {
+        description: "Please enter a case title",
+      });
+      return;
+    }
     createCase.mutate(
       { name: title, description },
       {
@@ -170,10 +178,8 @@ export default function DashboardPage() {
   // Compute stats from cases data
   const activeCases = cases?.filter((c) => (c.status || "open") !== "closed").length || 0;
   
-  // Count AI queries from activities
-  const totalAIQueries = useMemo(() => {
-    return activities.filter((activity) => activity.type === "query").length;
-  }, [activities]);
+  // Count AI queries from database query history
+  const totalAIQueries = queryHistory?.length || 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -334,39 +340,38 @@ export default function DashboardPage() {
               key={getCaseId(c)}
               href={`/dashboard/case/${getCaseId(c)}`}
               onClick={() => setCurrentCase(c)}
+              className="h-full"
             >
-              <Card className="group cursor-pointer border-border bg-card transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
+              <Card className="group h-full flex flex-col cursor-pointer border-border bg-card transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4 text-primary" />
-                      <CardTitle className="text-sm font-semibold text-foreground">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+                      <CardTitle className="text-sm font-semibold text-foreground line-clamp-1">
                         {getCaseName(c)}
                       </CardTitle>
                     </div>
                     <Badge
                       variant="outline"
-                      className={`text-[10px] ${statusColor[c.status || "open"] || statusColor.open}`}
+                      className={`text-[10px] whitespace-nowrap shrink-0 ${statusColor[c.status || "open"] || statusColor.open}`}
                     >
                       {formatCaseStatus(c.status)}
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <CardDescription className="line-clamp-2 text-sm text-muted-foreground">
+                <CardContent className="flex flex-col flex-1 pt-0">
+                  <CardDescription className="line-clamp-2 text-xs text-muted-foreground">
                     {c.description}
                   </CardDescription>
-                  <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
+                  <div className="mt-auto pt-4 flex items-center gap-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1 shrink-0">
                       <Clock className="h-3 w-3" />
-                      {new Date(c.created_at).toLocaleDateString()}
+                      <span className="truncate">{formatCompactDate(c.created_at)}</span>
                     </span>
-                    {c.evidence_count !== undefined && (
-                      <span className="flex items-center gap-1">
-                        <FileText className="h-3 w-3" />
-                        {c.evidence_count} files
-                      </span>
-                    )}
+                    <span className="flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      {c.evidence_count ?? 0} files
+                    </span>
                   </div>
                 </CardContent>
               </Card>

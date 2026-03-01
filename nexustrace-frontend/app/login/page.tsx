@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Shield, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useLogin } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,18 @@ export default function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim()) {
+      toast.error("Username required", {
+        description: "Please enter your username to sign in",
+      });
+      return;
+    }
+    if (!password) {
+      toast.error("Password required", {
+        description: "Please enter your password to sign in",
+      });
+      return;
+    }
     login.mutate({ username, password });
   };
 

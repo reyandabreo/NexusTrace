@@ -52,6 +52,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuditStore, AuditAction } from "@/store/auditStore";
 import { useAuthStore } from "@/store/authStore";
+import { toast } from "sonner";
 
 const actionIcons: Record<AuditAction, React.ComponentType<any>> = {
   LOGIN: LogIn,
@@ -306,10 +307,10 @@ export default function AuditTrailPage() {
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* Search & Filters Section */}
       <div className="mb-6 space-y-3">
-        {/* Search Bar - Full Width */}
-        <div className="relative w-full">
+        {/* Search Bar */}
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by user, action, resource..."
@@ -319,56 +320,65 @@ export default function AuditTrailPage() {
           />
         </div>
         
-        {/* Filter Controls & Export Buttons */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:flex-wrap">
-          <div className="flex flex-wrap gap-2">
+        {/* Filters & Export Row */}
+        <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+          {/* Left: Filter Dropdowns */}
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-10 w-40 border-border bg-card text-sm text-foreground hover:bg-muted/50" suppressHydrationWarning>
+              <SelectTrigger className="h-9 w-35 border-border bg-card text-sm text-foreground" suppressHydrationWarning>
                 <Filter className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                <SelectValue placeholder="Status" className="text-foreground" />
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent className="border-border bg-card">
-                <SelectItem value="all" className="text-foreground">All Status</SelectItem>
-                <SelectItem value="success" className="text-foreground">Success</SelectItem>
-                <SelectItem value="failed" className="text-foreground">Failed</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="success">Success</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
+            
             <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="h-10 w-40 border-border bg-card text-sm text-foreground hover:bg-muted/50" suppressHydrationWarning>
+              <SelectTrigger className="h-9 w-37.5 border-border bg-card text-sm text-foreground" suppressHydrationWarning>
                 <Activity className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                <SelectValue placeholder="Action" className="text-foreground" />
+                <SelectValue placeholder="Action" />
               </SelectTrigger>
               <SelectContent className="border-border bg-card">
-                <SelectItem value="all" className="text-foreground">All Actions</SelectItem>
-                <SelectItem value="LOGIN" className="text-foreground">Login</SelectItem>
-                <SelectItem value="LOGOUT" className="text-foreground">Logout</SelectItem>
-                <SelectItem value="CREATE_CASE" className="text-foreground">Create Case</SelectItem>
-                <SelectItem value="UPLOAD_EVIDENCE" className="text-foreground">Upload Evidence</SelectItem>
-                <SelectItem value="RAG_QUERY" className="text-foreground">RAG Query</SelectItem>
-                <SelectItem value="EXPORT_REPORT" className="text-foreground">Export Report</SelectItem>
+                <SelectItem value="all">All Actions</SelectItem>
+                <SelectItem value="LOGIN">Login</SelectItem>
+                <SelectItem value="LOGOUT">Logout</SelectItem>
+                <SelectItem value="CREATE_CASE">Create Case</SelectItem>
+                <SelectItem value="UPLOAD_EVIDENCE">Upload Evidence</SelectItem>
+                <SelectItem value="RAG_QUERY">RAG Query</SelectItem>
+                <SelectItem value="EXPORT_REPORT">Export Report</SelectItem>
               </SelectContent>
             </Select>
+            
             <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="h-10 w-38.75 border-border bg-card text-sm text-foreground hover:bg-muted/50" suppressHydrationWarning>
+              <SelectTrigger className="h-9 w-35 border-border bg-card text-sm text-foreground" suppressHydrationWarning>
                 <Calendar className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                <SelectValue placeholder="Date" className="text-foreground" />
+                <SelectValue placeholder="Date" />
               </SelectTrigger>
               <SelectContent className="border-border bg-card">
-                <SelectItem value="1" className="text-foreground">Last 24 Hours</SelectItem>
-                <SelectItem value="7" className="text-foreground">Last 7 days</SelectItem>
-                <SelectItem value="30" className="text-foreground">Last 30 days</SelectItem>
-                <SelectItem value="90" className="text-foreground">Last 90 days</SelectItem>
-                <SelectItem value="all" className="text-foreground">All time</SelectItem>
+                <SelectItem value="1">Last 24 Hours</SelectItem>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="all">All time</SelectItem>
               </SelectContent>
             </Select>
           </div>
           
-          <div className="flex gap-2 flex-wrap">
+          {/* Right: Export Buttons */}
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="h-10 border-border bg-card text-foreground hover:bg-muted/50 hover:text-foreground"
-              onClick={() => exportAuditLogs("csv")}
+              className="h-9 border-border bg-card text-sm text-foreground hover:bg-muted"
+              onClick={() => {
+                exportAuditLogs("csv");
+                toast.success("Audit logs exported", {
+                  description: "CSV file has been downloaded",
+                });
+              }}
             >
               <Download className="mr-2 h-4 w-4" />
               Export CSV
@@ -376,8 +386,13 @@ export default function AuditTrailPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-10 border-border bg-card text-foreground hover:bg-muted/50 hover:text-foreground"
-              onClick={() => exportAuditLogs("json")}
+              className="h-9 border-border bg-card text-sm text-foreground hover:bg-muted"
+              onClick={() => {
+                exportAuditLogs("json");
+                toast.success("Audit logs exported", {
+                  description: "JSON file has been downloaded",
+                });
+              }}
             >
               <Download className="mr-2 h-4 w-4" />
               Export JSON

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, User, ThumbsUp, ThumbsDown, Eye } from "lucide-react";
+import { Bot, User, ThumbsUp, ThumbsDown, Eye, Copy, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFeedback, useRagExplanation } from "@/hooks/useRag";
 import ExplanationDrawer from "@/components/rag/ExplanationDrawer";
+import { toast } from "sonner";
 import type { ChatMessage as ChatMessageType } from "@/types/rag";
 
 export default function ChatMessage({
@@ -27,6 +28,19 @@ export default function ChatMessage({
     if (!message.query_id) return;
     feedback.mutate({ query_id: message.query_id, is_correct: isCorrect });
     setFeedbackGiven(isCorrect);
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      toast.success("Copied to clipboard", {
+        description: "Message content has been copied",
+      });
+    } catch {
+      toast.error("Failed to copy", {
+        description: "Could not copy text to clipboard",
+      });
+    }
   };
 
   return (
@@ -63,16 +77,40 @@ export default function ChatMessage({
 
           {/* Sources */}
           {isAssistant && message.sources && message.sources.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {message.sources.map((source, i) => (
-                <Badge
-                  key={i}
-                  variant="outline"
-                  className="text-[10px] bg-primary/10 text-primary border-primary/30"
-                >
-                  {source}
-                </Badge>
-              ))}
+            <div className="mt-3 space-y-1.5">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Sources</p>
+              <div className="flex flex-wrap gap-1.5">
+                {message.sources.map((source, i) => (
+                  <Badge
+                    key={i}
+                    variant="outline"
+                    className="text-[10px] gap-1 bg-primary/10 text-primary border-primary/30"
+                  >
+                    <FileText className="h-2.5 w-2.5" />
+                    {source.filename}
+                    {source.pages_referenced && source.pages_referenced.length > 0 && (
+                      <span className="text-primary/70">
+                        {" "}p.{source.pages_referenced.join(", ")}
+                      </span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Confidence */}
+          {isAssistant && message.confidence != null && message.confidence > 0 && (
+            <div className="mt-2">
+              <span className={`text-[10px] font-medium ${
+                message.confidence >= 0.8
+                  ? "text-[#22c55e]"
+                  : message.confidence >= 0.5
+                    ? "text-yellow-500"
+                    : "text-destructive"
+              }`}>
+                Confidence: {Math.round(message.confidence * 100)}%
+              </span>
             </div>
           )}
 
@@ -115,6 +153,15 @@ export default function ChatMessage({
               >
                 <Eye className="h-3 w-3" />
                 Explain
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-primary"
+                onClick={handleCopy}
+              >
+                <Copy className="h-3 w-3" />
+                Copy
               </Button>
             </div>
           )}

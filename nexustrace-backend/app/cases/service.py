@@ -10,6 +10,7 @@ class CaseService:
 
     def create_case(self, case: CaseCreate):
         case_id = str(uuid.uuid4())
+        tags_str = ",".join(case.tags) if case.tags else ""
         query = """
 
         MERGE (u:User {id: $user_id})
@@ -18,22 +19,31 @@ class CaseService:
             name: $name,
             description: $description,
             status: "open",
+            priority: $priority,
+            tags: $tags,
             created_at: timestamp()
         })
         MERGE (u)-[:CREATED]->(c)
         RETURN c.case_id as case_id, c.name as name, c.description as description, 
-               c.created_at as created_at, c.status as status
+               c.created_at as created_at, c.status as status,
+               c.priority as priority, c.tags as tags
         """
         result = self.session.run(query, 
                                   user_id=self.user_id,
                                   case_id=case_id,
                                   name=case.name,
-                                  description=case.description).single()
+                                  description=case.description,
+                                  priority=case.priority or "medium",
+                                  tags=tags_str).single()
         
         if not result:
             raise HTTPException(status_code=500, detail="Failed to create case")
         
-        return CaseResponse(**result)
+        data = dict(result)
+        # Convert tags string back to list
+        if isinstance(data.get("tags"), str):
+            data["tags"] = [t.strip() for t in data["tags"].split(",") if t.strip()] if data["tags"] else []
+        return CaseResponse(**data)
 
     def get_cases(self):
         query = """
@@ -41,11 +51,24 @@ class CaseService:
         OPTIONAL MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)
         WITH c, COUNT(DISTINCT e) as evidence_count
         RETURN c.case_id as case_id, c.name as name, c.description as description, 
-               c.created_at as created_at, c.status as status, evidence_count
+               c.created_at as created_at, c.status as status,
+               c.priority as priority, c.tags as tags, evidence_count
         ORDER BY c.created_at DESC
         """
         results = self.session.run(query, user_id=self.user_id)
-        return [CaseResponse(**record) for record in results]
+        cases = []
+        for record in results:
+            data = dict(record)
+            # Handle missing priority for old cases
+            if data.get("priority") is None:
+                data["priority"] = "medium"
+            # Convert tags string back to list
+            if isinstance(data.get("tags"), str):
+                data["tags"] = [t.strip() for t in data["tags"].split(",") if t.strip()] if data["tags"] else []
+            elif data.get("tags") is None:
+                data["tags"] = []
+            cases.append(CaseResponse(**data))
+        return cases
 
     def get_case(self, case_id: str):
         query = """
@@ -54,14 +77,22 @@ class CaseService:
         OPTIONAL MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)
         WITH c, COUNT(DISTINCT e) as evidence_count
         RETURN c.case_id as case_id, c.name as name, c.description as description, 
-               c.created_at as created_at, c.status as status, evidence_count
+               c.created_at as created_at, c.status as status,
+               c.priority as priority, c.tags as tags, evidence_count
         """
         result = self.session.run(query, user_id=self.user_id, case_id=case_id).single()
         
         if not result:
             raise HTTPException(status_code=404, detail="Case not found or access denied")
         
-        return CaseResponse(**result)
+        data = dict(result)
+        if data.get("priority") is None:
+            data["priority"] = "medium"
+        if isinstance(data.get("tags"), str):
+            data["tags"] = [t.strip() for t in data["tags"].split(",") if t.strip()] if data["tags"] else []
+        elif data.get("tags") is None:
+            data["tags"] = []
+        return CaseResponse(**data)
 
     def update_case(self, case_id: str, case_update: CaseUpdate):
         # Check existence and permission
@@ -80,6 +111,12 @@ class CaseService:
         if case_update.description is not None:
             set_clauses.append("c.description = $description")
             params["description"] = case_update.description
+        if case_update.priority is not None:
+            set_clauses.append("c.priority = $priority")
+            params["priority"] = case_update.priority
+        if case_update.tags is not None:
+            set_clauses.append("c.tags = $tags")
+            params["tags"] = ",".join(case_update.tags)
             
         if not set_clauses:
             raise HTTPException(status_code=400, detail="No fields to update")
@@ -91,7 +128,8 @@ class CaseService:
         OPTIONAL MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)
         WITH c, COUNT(DISTINCT e) as evidence_count
         RETURN c.case_id as case_id, c.name as name, c.description as description,
-               c.created_at as created_at, c.status as status, evidence_count
+               c.created_at as created_at, c.status as status,
+               c.priority as priority, c.tags as tags, evidence_count
         """
         
         result = self.session.run(query, **params).single()
@@ -99,7 +137,14 @@ class CaseService:
         if not result:
             raise HTTPException(status_code=404, detail="Case not found or update failed")
         
-        return CaseResponse(**result)
+        data = dict(result)
+        if data.get("priority") is None:
+            data["priority"] = "medium"
+        if isinstance(data.get("tags"), str):
+            data["tags"] = [t.strip() for t in data["tags"].split(",") if t.strip()] if data["tags"] else []
+        elif data.get("tags") is None:
+            data["tags"] = []
+        return CaseResponse(**data)
 
     def delete_case(self, case_id: str):
         # Cascading delete might be dangerous, but usually requested for cleanup.

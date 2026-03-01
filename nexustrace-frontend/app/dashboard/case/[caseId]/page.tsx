@@ -9,6 +9,8 @@ import { useCaseStore } from "@/store/caseStore";
 import { useActivityStore } from "@/store/activityStore";
 import { useAuthStore } from "@/store/authStore";
 import { getCaseName, formatCaseStatus } from "@/lib/caseUtils";
+import { formatCompactDate } from "@/lib/utils";
+import { toast } from "sonner";
 import EvidenceUpload from "@/components/evidence/EvidenceUpload";
 import EvidenceList from "@/components/evidence/EvidenceList";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +92,10 @@ export default function CaseOverviewPage() {
         data: { status: "closed" },
       });
       
+      toast.success("Case closed", {
+        description: `${getCaseName(caseData)} has been marked as closed`,
+      });
+      
       addActivity({
         type: "update",
         action: `Closed case: ${getCaseName(caseData)}`,
@@ -98,7 +104,9 @@ export default function CaseOverviewPage() {
       });
     } catch (error) {
       console.error("Failed to close case:", error);
-      // Error will be shown by the mutation's onError handler
+      toast.error("Failed to close case", {
+        description: "Something went wrong. Please try again.",
+      });
     } finally {
       setIsClosing(false);
     }
@@ -232,10 +240,10 @@ export default function CaseOverviewPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#a855f7]/10">
               <Clock className="h-5 w-5 text-[#a855f7]" />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">
+            <div className="min-w-0 flex-1">
+              <p className="text-2xl font-bold text-foreground truncate">
                 {caseData?.created_at
-                  ? new Date(caseData.created_at).toLocaleDateString()
+                  ? formatCompactDate(caseData.created_at)
                   : "--"}
               </p>
               <p className="text-xs text-muted-foreground">Created</p>

@@ -63,7 +63,11 @@ class GraphBuilder:
             text: $text,
             timestamp: $timestamp,
             risk_score: $risk_score,
-            embedding: $embedding
+            embedding: $embedding,
+            filename: $filename,
+            file_type: $file_type,
+            page_number: $page_number,
+            chunk_index: $chunk_index
         })
         CREATE (e)-[:HAS_CHUNK]->(ch)
         RETURN ch.chunk_id as chunk_id
@@ -76,7 +80,11 @@ class GraphBuilder:
                              text=chunk["text"],
                              timestamp=chunk.get("timestamp"),
                              risk_score=risk_score,
-                             embedding=embedding)
+                             embedding=embedding,
+                             filename=chunk.get("filename", ""),
+                             file_type=chunk.get("file_type", ""),
+                             page_number=chunk.get("page_number"),
+                             chunk_index=chunk.get("chunk_index", 0))
             record = result.single()
             if record:
                 print(f"✓ Stored chunk: {record['chunk_id']}")

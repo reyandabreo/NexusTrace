@@ -46,3 +46,23 @@ def get_evidence(
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
     return evidence
+
+@router.delete("/{evidence_id}")
+def delete_evidence(
+    evidence_id: str,
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db_session)
+):
+    """Delete evidence and all associated chunks, entities, and query references"""
+    # Verify case ownership
+    case_service = CaseService(session, current_user["user_id"])
+    case_service.get_case(case_id)
+    
+    service = IngestionService(session, current_user["user_id"])
+    # Verify evidence exists
+    evidence = service.get_evidence(evidence_id)
+    if not evidence:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    
+    return service.delete_evidence(evidence_id, case_id)

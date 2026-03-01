@@ -1,6 +1,12 @@
 export interface RagQuery {
   question: string;
   case_id: string;
+  chat_history?: ChatHistoryMessage[];
+}
+
+export interface ChatHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 export interface RagChunk {
@@ -10,12 +16,20 @@ export interface RagChunk {
   similarity_score: number;
 }
 
+export interface SourceAttribution {
+  filename: string;
+  evidence_id: string;
+  file_type: string;
+  pages_referenced: number[];
+}
+
 export interface RagResponse {
   query_id: string;
   answer: string;
   cited_chunks: string[];
-  confidence: number;
-  sources: string[];
+  reasoning_summary: string;
+  confidence_score: number;
+  sources: SourceAttribution[];
 }
 
 export interface RagExplanation {
@@ -31,7 +45,8 @@ export interface ChatMessage {
   content: string;
   query_id?: string;
   cited_chunks?: string[];
-  sources?: string[];
+  sources?: SourceAttribution[];
+  confidence?: number;
   timestamp: Date;
 }
 

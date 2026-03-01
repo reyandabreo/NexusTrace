@@ -3,7 +3,7 @@ from neo4j import Session
 from app.rag.retriever import Retriever
 from app.rag.context_builder import ContextBuilder
 from app.rag.generator import Generator
-from app.schemas.rag import RAGQuery, RAGResponse, ExplanationResponse
+from app.schemas.rag import RAGQuery, RAGResponse, ExplanationResponse, SourceAttribution
 
 class RAGService:
     def __init__(self, session: Session):
@@ -16,13 +16,19 @@ class RAGService:
         # 1. Retrieve
         chunks = self.retriever.retrieve(user_id, query.case_id, query.question)
         
-        # 2. Build Context
+        # 2. Build Context (with source attribution)
         context = self.context_builder.build_context(chunks)
+        source_list = self.context_builder.get_source_list(chunks)
         
-        # 3. Generate
-        result = self.generator.generate_answer(query.question, context)
+        # 3. Build chat history for conversation memory
+        chat_history = None
+        if query.chat_history:
+            chat_history = [{"role": m.role, "content": m.content} for m in query.chat_history]
         
-        # 4. Store Query Logs (optional but good for XAI)
+        # 4. Generate (with chat history for context continuity)
+        result = self.generator.generate_answer(query.question, context, chat_history=chat_history)
+        
+        # 5. Store Query Logs for XAI
         query_id = str(uuid.uuid4())
         
         # Store retrieval trace in DB for XAI
@@ -43,7 +49,7 @@ class RAGService:
         """
         
         # Simplified chunk list for params
-        chunk_params = [{"chunk_id": c["chunk_id"], "score": c.get("score"), "source": c.get("source")} for c in chunks]
+        chunk_params = [{"chunk_id": c["chunk_id"], "score": c.get("score"), "source": c.get("source"), "filename": c.get("filename", "")} for c in chunks]
         
         self.session.run(cypher_log, 
                          user_id=user_id,
@@ -52,13 +58,17 @@ class RAGService:
                          text=query.question, 
                          answer=result.get("answer"),
                          chunks=chunk_params)
+        
+        # Build source attribution objects
+        sources = [SourceAttribution(**s) for s in source_list]
                          
         return RAGResponse(
             query_id=query_id,
             answer=result.get("answer", "Error"),
             cited_chunks=result.get("cited_chunks", []),
             reasoning_summary=result.get("reasoning_summary", ""),
-            confidence_score=result.get("confidence_score", 0.0)
+            confidence_score=result.get("confidence_score", 0.0),
+            sources=sources
         )
 
     def get_explanation(self, query_id: str) -> ExplanationResponse:
