@@ -545,11 +545,10 @@ NexusTrace stands on the shoulders of giants:
 
 ## 📞 Contact & Support
 
-- **GitHub**: [@yourusername](https://github.com/yourusername/nexustrace)
+- **GitHub**: [@reyandabreo](https://github.com/reyandabreo/nexustrace)
 - **Issues**: [Report bugs or request features](https://github.com/yourusername/nexustrace/issues)
 - **Discussions**: [Join the conversation](https://github.com/yourusername/nexustrace/discussions)
-- **Email**: support@nexustrace.io (if available)
-- **Twitter**: [@NexusTrace](https://twitter.com/nexustrace) (if available)
+- **Email**: rayepenber28@gmail.com (if available)
 
 ---
 
