@@ -548,7 +548,7 @@ NexusTrace stands on the shoulders of giants:
 - **GitHub**: [@reyandabreo](https://github.com/reyandabreo/nexustrace)
 - **Issues**: [Report bugs or request features](https://github.com/yourusername/nexustrace/issues)
 - **Discussions**: [Join the conversation](https://github.com/yourusername/nexustrace/discussions)
-- **Email**: rayepenber28@gmail.com (if available)
+- **Email**: rayepenber28@gmail.com
 
 ---
 
