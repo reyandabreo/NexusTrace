@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -15,10 +15,44 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useNetworkGraph } from "@/hooks/useCases";
+import { useNetworkGraph, useNetworkRelations } from "@/hooks/useCases";
 import { Network } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { GraphNode, GraphEdge } from "@/types/graph";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import type { GraphNode, GraphEdge, RelationTypeCount } from "@/types/graph";
+
+const DEFAULT_RELATIONS = ["HAS_EVIDENCE", "MENTIONS"] as const;
+
+const relationLabels: Record<string, string> = {
+  HAS_EVIDENCE: "Case to Evidence",
+  HAS_ENTITY: "Case to Entity",
+  HAS_CHUNK: "Evidence to Chunk",
+  MENTIONS: "Mentions",
+  CO_OCCURS: "Co-occurs",
+};
+
+const relationOrder = [
+  "HAS_EVIDENCE",
+  "MENTIONS",
+  "CO_OCCURS",
+  "HAS_ENTITY",
+  "HAS_CHUNK",
+];
+
+const CO_OCCURS_LEVELS = [
+  { id: "compact", label: "Compact (50/100)", maxEntities: 50, maxEdges: 100 },
+  { id: "standard", label: "Standard (100/250)", maxEntities: 100, maxEdges: 250 },
+  { id: "expanded", label: "Expanded (180/450)", maxEntities: 180, maxEdges: 450 },
+];
 
 const nodeColors: Record<string, string> = {
   // Entity types (from properties.type)
@@ -32,8 +66,28 @@ const nodeColors: Record<string, string> = {
   Case: "#ef4444",
   Evidence: "#8b5cf6",
   Entity: "#64748b",
+  Chunk: "#0ea5e9",
   default: "#8b8fa3",
 };
+
+const edgeColors: Record<string, string> = {
+  HAS_EVIDENCE: "#8b5cf6",
+  HAS_ENTITY: "#f59e0b",
+  HAS_CHUNK: "#0ea5e9",
+  MENTIONS: "#22c55e",
+  CO_OCCURS: "#06b6d4",
+  default: "#1f2335",
+};
+
+function formatRelationLabel(relation: string) {
+  if (relationLabels[relation]) {
+    return relationLabels[relation];
+  }
+  return relation
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
 
 // Improved force-directed layout algorithm
 function calculateForceLayout(graphNodes: GraphNode[], graphEdges: GraphEdge[]): Node[] {
@@ -168,8 +222,11 @@ function toFlowEdges(graphEdges: GraphEdge[]): Edge[] {
     target: e.target,
     label: e.label,
     animated: true,
-    style: { stroke: "#1f2335", strokeWidth: 2 },
-    labelStyle: { fill: "#8b8fa3", fontSize: 10 },
+    style: {
+      stroke: edgeColors[e.label] || edgeColors.default,
+      strokeWidth: e.label === "CO_OCCURS" ? 2.5 : 2,
+    },
+    labelStyle: { fill: edgeColors[e.label] || "#8b8fa3", fontSize: 10 },
   }));
 }
 
@@ -255,7 +312,74 @@ function NetworkGraphView({
 export default function NetworkPage() {
   const params = useParams();
   const caseId = params?.caseId as string;
-  const { data: graph, isLoading } = useNetworkGraph(caseId);
+  const { data: relationOptions, isLoading: relationsLoading } = useNetworkRelations(caseId);
+  const [selectedRelations, setSelectedRelations] = useState<string[]>([...DEFAULT_RELATIONS]);
+  const [coOccursLevel, setCoOccursLevel] = useState(CO_OCCURS_LEVELS[0].id);
+
+  const coOccursLimits = useMemo(() => {
+    return CO_OCCURS_LEVELS.find((level) => level.id === coOccursLevel) || CO_OCCURS_LEVELS[0];
+  }, [coOccursLevel]);
+
+  const activeCoOccursLimits = useMemo(
+    () => (selectedRelations.includes("CO_OCCURS") ? coOccursLimits : undefined),
+    [selectedRelations, coOccursLimits]
+  );
+
+  const { data: graph, isLoading } = useNetworkGraph(
+    caseId,
+    selectedRelations,
+    activeCoOccursLimits
+  );
+
+  const orderedRelations = useMemo(() => {
+    if (!relationOptions?.length) return [] as RelationTypeCount[];
+    const orderMap = new Map(relationOrder.map((rel, index) => [rel, index]));
+    return [...relationOptions].sort((a, b) => {
+      const aOrder = orderMap.has(a.type) ? orderMap.get(a.type)! : 999;
+      const bOrder = orderMap.has(b.type) ? orderMap.get(b.type)! : 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return b.count - a.count;
+    });
+  }, [relationOptions]);
+
+  const defaultSelection = useMemo(() => {
+    if (!relationOptions?.length) return [...DEFAULT_RELATIONS];
+    const available = new Set(relationOptions.map((rel) => rel.type));
+    const defaults = DEFAULT_RELATIONS.filter((rel) => available.has(rel));
+    if (defaults.length) return defaults;
+    return relationOptions.slice(0, 2).map((rel) => rel.type);
+  }, [relationOptions]);
+
+  useEffect(() => {
+    if (!relationOptions?.length) return;
+    const available = new Set(relationOptions.map((rel) => rel.type));
+    const filtered = selectedRelations.filter((rel) => available.has(rel));
+    if (filtered.length === 0) {
+      setSelectedRelations(defaultSelection);
+      return;
+    }
+    if (filtered.length !== selectedRelations.length) {
+      setSelectedRelations(filtered);
+    }
+  }, [relationOptions, selectedRelations, defaultSelection]);
+
+  const toggleRelation = (relation: string) => {
+    setSelectedRelations((prev) => {
+      if (prev.includes(relation)) {
+        return prev.length > 1 ? prev.filter((rel) => rel !== relation) : prev;
+      }
+      return [...prev, relation];
+    });
+  };
+
+  const selectAllRelations = () => {
+    if (!relationOptions?.length) return;
+    setSelectedRelations(relationOptions.map((rel) => rel.type));
+  };
+
+  const resetRelations = () => {
+    setSelectedRelations(defaultSelection);
+  };
 
   const initialNodes = useMemo(
     () => (graph?.nodes && graph?.edges ? calculateForceLayout(graph.nodes, graph.edges) : []),
@@ -263,6 +387,14 @@ export default function NetworkPage() {
   );
   const initialEdges = useMemo(
     () => (graph?.edges ? toFlowEdges(graph.edges) : []),
+    [graph]
+  );
+
+  const graphStats = useMemo(
+    () => ({
+      nodes: graph?.nodes?.length || 0,
+      edges: graph?.edges?.length || 0,
+    }),
     [graph]
   );
 
@@ -285,16 +417,120 @@ export default function NetworkPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Interactive visualization of entity relationships
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="border-border text-xs">
+            Nodes: {graphStats.nodes}
+          </Badge>
+          <Badge variant="outline" className="border-border text-xs">
+            Edges: {graphStats.edges}
+          </Badge>
+          <Badge variant="outline" className="border-border text-xs">
+            Relations: {selectedRelations.length}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Relation Filters
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Choose which Neo4j relationships to render in the graph.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Co-occurs detail</span>
+              <Select value={coOccursLevel} onValueChange={setCoOccursLevel}>
+                <SelectTrigger size="sm" className="border-border text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CO_OCCURS_LEVELS.map((level) => (
+                    <SelectItem key={level.id} value={level.id}>
+                      {level.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={resetRelations}
+              className="border-border"
+            >
+              Reset
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={selectAllRelations}
+              className="text-muted-foreground"
+            >
+              Select all
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {relationsLoading ? (
+            Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={`relation-skeleton-${index}`} className="h-7 w-28 rounded-full" />
+            ))
+          ) : orderedRelations.length ? (
+            orderedRelations.map((relation) => {
+              const isSelected = selectedRelations.includes(relation.type);
+              return (
+                <Button
+                  key={relation.type}
+                  variant="outline"
+                  size="xs"
+                  onClick={() => toggleRelation(relation.type)}
+                  aria-pressed={isSelected}
+                  className={cn(
+                    "h-7 rounded-full border-border px-2 text-[11px]",
+                    isSelected
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <span className="font-medium">
+                    {formatRelationLabel(relation.type)}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "border-border px-1.5 py-0 text-[9px]",
+                      isSelected ? "text-primary" : "text-muted-foreground"
+                    )}
+                  >
+                    {relation.count}
+                  </Badge>
+                </Button>
+              );
+            })
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No relationships available yet. Upload evidence to build the graph.
+            </p>
+          )}
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Tip: Add CO_OCCURS to reveal entity-to-entity associations. Higher detail may be slower.
+        </p>
       </div>
 
       {initialNodes.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 py-20">
           <Network className="mb-4 h-12 w-12 text-muted-foreground/40" />
           <h3 className="text-lg font-semibold text-foreground">
-            No graph data yet
+            Nothing to display yet
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Process evidence to build the network graph
+            Try different relations or process more evidence
           </p>
         </div>
       ) : (

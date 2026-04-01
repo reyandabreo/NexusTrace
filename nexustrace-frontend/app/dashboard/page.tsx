@@ -149,7 +149,11 @@ export default function DashboardPage() {
     }, 0);
   }, [prioritizedQueries]);
 
-  const filteredCases = cases?.filter(
+  const activeCasesList = cases?.filter(
+    (c) => (c.status || "open") !== "closed"
+  ) || [];
+
+  const filteredCases = activeCasesList.filter(
     (c) =>
       getCaseName(c).toLowerCase().includes(search.toLowerCase()) ||
       c.description.toLowerCase().includes(search.toLowerCase())
@@ -303,7 +307,7 @@ export default function DashboardPage() {
             Investigation Cases
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {cases?.length || 0} total &middot; {activeCases} active
+            {activeCases} ongoing
           </p>
         </div>
         <div className="relative w-full sm:w-64">

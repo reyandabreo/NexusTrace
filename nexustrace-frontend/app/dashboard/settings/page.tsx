@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import {
   Settings as SettingsIcon,
   User,
@@ -29,13 +30,19 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
 import { useAuditLogger } from "@/store/auditStore";
+import api from "@/lib/api";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const { logAction } = useAuditLogger();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [sessionInfo, setSessionInfo] = useState({ browser: "Browser", os: "Unknown OS" });
+  const [isPasswordUpdating, setIsPasswordUpdating] = useState(false);
+  const [isLoggingOutAll, setIsLoggingOutAll] = useState(false);
   
   // Profile state
   const [fullName, setFullName] = useState(user?.username || "");
@@ -60,6 +67,32 @@ export default function SettingsPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted || typeof navigator === "undefined") return;
+    const userAgent = navigator.userAgent;
+
+    const detectBrowser = (ua: string) => {
+      if (/Zen/i.test(ua)) return "Zen Browser";
+      if (/Edg/i.test(ua)) return "Microsoft Edge";
+      if (/OPR|Opera/i.test(ua)) return "Opera";
+      if (/Firefox/i.test(ua)) return "Firefox";
+      if (/Chrome/i.test(ua) && !/Edg|OPR/i.test(ua)) return "Chrome";
+      if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) return "Safari";
+      return "Unknown Browser";
+    };
+
+    const detectOS = (ua: string) => {
+      if (/Windows NT/i.test(ua)) return "Windows";
+      if (/Mac OS X/i.test(ua) && !/iPhone|iPad|iPod/i.test(ua)) return "macOS";
+      if (/Android/i.test(ua)) return "Android";
+      if (/iPhone|iPad|iPod/i.test(ua)) return "iOS";
+      if (/Linux/i.test(ua)) return "Linux";
+      return "Unknown OS";
+    };
+
+    setSessionInfo({ browser: detectBrowser(userAgent), os: detectOS(userAgent) });
+  }, [mounted]);
   
   const handleSaveProfile = () => {
     logAction("UPDATE_SETTINGS", "Profile Information", {
@@ -81,7 +114,7 @@ export default function SettingsPage() {
     });
   };
   
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (passwords.new !== passwords.confirm) {
       toast.error("Passwords don't match", {
         description: "New password and confirmation must match",
@@ -96,26 +129,67 @@ export default function SettingsPage() {
       return;
     }
     
-    logAction("UPDATE_SETTINGS", "Password Change", {
-      status: "success",
-      details: "Changed account password",
-    });
-    
-    toast.success("Password updated", {
-      description: "Your password has been changed successfully",
-    });
-    
-    setPasswords({ current: "", new: "", confirm: "" });
+    if (!passwords.current) {
+      toast.error("Current password required", {
+        description: "Please enter your current password",
+      });
+      return;
+    }
+
+    setIsPasswordUpdating(true);
+    try {
+      await api.post("/auth/change-password", {
+        current_password: passwords.current,
+        new_password: passwords.new,
+      });
+
+      logAction("UPDATE_SETTINGS", "Password Change", {
+        status: "success",
+        details: "Changed account password",
+      });
+      
+      toast.success("Password updated", {
+        description: "Your password has been changed successfully",
+      });
+      
+      setPasswords({ current: "", new: "", confirm: "" });
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      toast.error("Password update failed", {
+        description: typeof detail === "string" ? detail : "Please try again",
+      });
+    } finally {
+      setIsPasswordUpdating(false);
+    }
   };
   
-  const handleLogoutAllSessions = () => {
-    logAction("LOGOUT", "All Sessions", {
-      status: "success",
-      details: "Logged out all active sessions",
-    });
-    toast.success("Sessions ended", {
-      description: "All active sessions have been logged out",
-    });
+  const handleLogoutAllSessions = async () => {
+    setIsLoggingOutAll(true);
+    try {
+      await api.post("/auth/logout-all");
+
+      logAction("LOGOUT", "All Sessions", {
+        status: "success",
+        details: "Logged out all active sessions",
+      });
+      toast.success("Sessions ended", {
+        description: "All active sessions have been logged out",
+      });
+
+      logout();
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("activity-storage");
+        localStorage.removeItem("audit-storage");
+      }
+      router.push("/login");
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      toast.error("Logout failed", {
+        description: typeof detail === "string" ? detail : "Please try again",
+      });
+    } finally {
+      setIsLoggingOutAll(false);
+    }
   };
   
   const handleThemeChange = (newTheme: string) => {
@@ -380,9 +454,9 @@ export default function SettingsPage() {
                     />
                   </div>
                   
-                  <Button onClick={handleChangePassword} className="gap-2">
+                  <Button onClick={handleChangePassword} className="gap-2" disabled={isPasswordUpdating}>
                     <Shield className="h-4 w-4" />
-                    Update Password
+                    {isPasswordUpdating ? "Updating..." : "Update Password"}
                   </Button>
                 </div>
                 
@@ -398,8 +472,10 @@ export default function SettingsPage() {
                         <Monitor className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">Current Device – Chrome</p>
-                        <p className="text-xs text-muted-foreground">Active now</p>
+                        <p className="text-sm font-medium text-foreground">
+                          Current Device – {sessionInfo.browser}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Active now · {sessionInfo.os}</p>
                       </div>
                     </div>
                     <div className="flex h-2 w-2 rounded-full bg-green-500" />
@@ -409,9 +485,10 @@ export default function SettingsPage() {
                     onClick={handleLogoutAllSessions} 
                     variant="outline" 
                     className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+                    disabled={isLoggingOutAll}
                   >
                     <LogOut className="h-4 w-4" />
-                    Logout All Sessions
+                    {isLoggingOutAll ? "Ending Sessions..." : "Logout All Sessions"}
                   </Button>
                 </div>
               </CardContent>

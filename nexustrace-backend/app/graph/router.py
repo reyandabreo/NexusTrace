@@ -3,8 +3,8 @@ from neo4j import Session
 from app.db.neo4j import get_db_session
 from app.auth.router import get_current_user
 from app.graph.timeline import TimelineService
-from app.schemas.graph import GraphResponse, MindmapResponse, TimelineEvent, PrioritizedLead
-from typing import List
+from app.schemas.graph import GraphResponse, MindmapResponse, TimelineEvent, PrioritizedLead, RelationTypeCount
+from typing import List, Optional
 import logging
 
 router = APIRouter()
@@ -78,14 +78,38 @@ def get_entity(
 @router.get("/network/{case_id}", response_model=GraphResponse)
 def get_network(
     case_id: str,
+    relations: Optional[str] = None,
+    co_occurs_max_entities: Optional[int] = None,
+    co_occurs_max_edges: Optional[int] = None,
     current_user: dict = Depends(get_current_user),
     session: Session = Depends(get_db_session)
 ):
     try:
         service = TimelineService(session, current_user["user_id"])
-        return service.get_network(case_id)
+        relation_types = None
+        if relations:
+            relation_types = [r.strip().upper() for r in relations.split(",") if r.strip()]
+        return service.get_network(
+            case_id,
+            relation_types,
+            co_occurs_max_entities,
+            co_occurs_max_edges,
+        )
     except Exception as e:
         logger.error(f"Error in get_network: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/network/{case_id}/relations", response_model=List[RelationTypeCount])
+def get_network_relations(
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db_session)
+):
+    try:
+        service = TimelineService(session, current_user["user_id"])
+        return service.get_network_relations(case_id)
+    except Exception as e:
+        logger.error(f"Error in get_network_relations: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/mindmap/{case_id}", response_model=MindmapResponse)

@@ -1,9 +1,17 @@
 from neo4j import Session
-from typing import List, Dict, Any
-from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime, timezone
+import math
 import re
 
 class TimelineService:
+    CO_OCCURS_EDGE_THRESHOLD = 0
+    CO_OCCURS_ENTITY_THRESHOLD = 0
+    CO_OCCURS_MAX_ENTITIES = 50
+    CO_OCCURS_MAX_EDGES = 100
+    RELATION_TOTAL_THRESHOLD = 100
+    RELATION_MAX_EDGES = 100
+
     def __init__(self, session: Session, user_id: str):
         self.session = session
         self.user_id = user_id
@@ -123,42 +131,30 @@ class TimelineService:
         query = """
         MATCH (c:Case {case_id: $case_id})
         MATCH (c)-[:HAS_ENTITY]->(ent:Entity)
-        MATCH (ent)<-[:MENTIONS]-(ch:Chunk)
-        WITH ent, 
-             COUNT(DISTINCT ch) as mention_count,
-             AVG(ch.risk_score) as avg_risk,
-             MAX(ch.timestamp) as last_occurrence,
-             COLLECT(DISTINCT ch.risk_score) as risk_scores,
-             COLLECT(DISTINCT ch.text) as chunk_texts
-        WITH ent,
-             mention_count,
-             avg_risk,
-             last_occurrence,
-             risk_scores,
-             chunk_texts,
-             // Calculate entity risk score based on mentions and avg chunk risk
-             CASE 
-                WHEN avg_risk IS NULL THEN 0.3 + (mention_count * 0.05)
-                ELSE avg_risk + (mention_count * 0.02)
-             END as entity_risk
-        // Count connections to other entities
-        OPTIONAL MATCH (ent)<-[:MENTIONS]-(ch1:Chunk)-[:MENTIONS]->(other:Entity)
-        WHERE elementId(other) <> elementId(ent)
-        WITH ent, mention_count, entity_risk, last_occurrence, chunk_texts,
-             COUNT(DISTINCT other) as connection_count
-        // Cap risk score at 1.0
-        WITH ent, mention_count, 
-             CASE WHEN entity_risk > 1.0 THEN 1.0 ELSE entity_risk END as final_risk,
-             connection_count, last_occurrence, chunk_texts
-        RETURN elementId(ent) as entity_id,
-               ent.name as entity_name,
-               ent.type as entity_type,
-               final_risk as risk_score,
-               mention_count,
-               connection_count,
-               last_occurrence,
-               chunk_texts
-        ORDER BY final_risk DESC, mention_count DESC
+           OPTIONAL MATCH (ent)<-[:MENTIONS]-(ch:Chunk)
+           WITH ent,
+               COUNT(DISTINCT ch) as mention_count,
+               AVG(ch.risk_score) as avg_risk,
+               MAX(ch.timestamp) as last_occurrence,
+               COLLECT(DISTINCT ch.text) as chunk_texts
+           OPTIONAL MATCH (ent)-[co:CO_OCCURS]-(:Entity)
+           WITH ent, mention_count, avg_risk, last_occurrence, chunk_texts,
+               SUM(CASE WHEN co IS NULL THEN 0 ELSE COALESCE(co.count, 1) END) as co_score,
+               COUNT(DISTINCT CASE 
+                  WHEN co IS NULL THEN null
+                  WHEN startNode(co) = ent THEN endNode(co)
+                  ELSE startNode(co)
+               END) as co_degree
+           RETURN elementId(ent) as entity_id,
+                ent.name as entity_name,
+                ent.type as entity_type,
+                mention_count,
+                co_score,
+                co_degree,
+                avg_risk,
+                last_occurrence,
+                chunk_texts
+           ORDER BY mention_count DESC
         LIMIT 100
         """
         
@@ -167,8 +163,9 @@ class TimelineService:
         leads = []
         for record in results:
             mention_count = record["mention_count"] or 0
-            connection_count = record["connection_count"] or 0
-            risk_score = record["risk_score"] or 0.0
+            co_score = record["co_score"] or 0
+            connection_count = record["co_degree"] or 0
+            avg_risk = record["avg_risk"] if record["avg_risk"] is not None else None
             
             # Generate reason based on analysis
             reason_parts = []
@@ -203,20 +200,9 @@ class TimelineService:
                 if any(word in combined_text for word in ['suspicious', 'anomal', 'unusual', 'abnormal']):
                     reason_parts.append("flagged as unusual behavior")
             
-            # Default reason if none generated
-            if len(reason_parts) == 1:
-                if risk_score >= 0.7:
-                    reason_parts.append("high-risk activity detected")
-                elif risk_score >= 0.5:
-                    reason_parts.append("moderate-risk patterns observed")
-                else:
-                    reason_parts.append("low-risk profile")
-            
-            reason = ", ".join(reason_parts).capitalize()
-            
             # Parse timestamp
             last_seen = self._parse_timestamp(record["last_occurrence"])
-            
+
             # Map entity type to frontend format
             entity_type_map = {
                 "PERSON": "person",
@@ -232,12 +218,79 @@ class TimelineService:
                 "id": record["entity_id"],
                 "entity": record["entity_name"] or "Unknown",
                 "entity_type": entity_type,
-                "risk_score": round(risk_score, 2),
-                "reason": reason,
+                "mention_count": mention_count,
+                "co_score": co_score,
                 "connections": connection_count,
-                "last_seen": last_seen
+                "avg_risk": avg_risk,
+                "last_seen": last_seen,
+                "reason_parts": reason_parts,
+                "chunk_texts": chunk_texts,
             })
-        
+
+        def norm_log(value: float, max_value: float) -> float:
+            if max_value <= 0:
+                return 0.0
+            return math.log1p(value) / math.log1p(max_value)
+
+        def recency_score(last_seen_value: str, half_life_days: float = 30.0) -> float:
+            if not last_seen_value:
+                return 0.3
+            try:
+                dt = datetime.fromisoformat(last_seen_value.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+                age_days = max((now - dt).total_seconds() / 86400.0, 0)
+                return math.exp(-age_days / half_life_days)
+            except Exception:
+                return 0.3
+
+        max_mentions = max((lead["mention_count"] for lead in leads), default=0) or 1
+        max_co_score = max((lead["co_score"] for lead in leads), default=0) or 1
+
+        for lead in leads:
+            mention_norm = norm_log(lead["mention_count"], max_mentions)
+            co_norm = norm_log(lead["co_score"], max_co_score)
+            risk_norm = lead["avg_risk"] if lead["avg_risk"] is not None else 0.3
+            risk_norm = min(max(risk_norm, 0.0), 1.0)
+            recency = recency_score(lead["last_seen"])
+
+            final_risk = (
+                0.45 * risk_norm
+                + 0.20 * mention_norm
+                + 0.25 * co_norm
+                + 0.10 * recency
+            )
+
+            lead["risk_score"] = round(min(final_risk, 1.0), 2)
+
+            # Default reason if none generated
+            if len(lead["reason_parts"]) == 1:
+                if lead["risk_score"] >= 0.7:
+                    lead["reason_parts"].append("high-risk activity detected")
+                elif lead["risk_score"] >= 0.5:
+                    lead["reason_parts"].append("moderate-risk patterns observed")
+                else:
+                    lead["reason_parts"].append("low-risk profile")
+
+            lead["reason"] = ", ".join(lead["reason_parts"]).capitalize()
+
+        leads.sort(
+            key=lambda item: (
+                item["risk_score"],
+                item["mention_count"],
+                item["co_score"],
+            ),
+            reverse=True,
+        )
+
+        for lead in leads:
+            lead.pop("avg_risk", None)
+            lead.pop("mention_count", None)
+            lead.pop("co_score", None)
+            lead.pop("reason_parts", None)
+            lead.pop("chunk_texts", None)
+
         return leads
         
     def get_entities(self, case_id: str):
@@ -263,76 +316,550 @@ class TimelineService:
             
         return result.data()
 
-    def get_network(self, case_id: str):
-        # Fetch Case node
-        case_query = """
-        MATCH (c:Case {case_id: $case_id})
-        RETURN elementId(c) as id, c.name as label, "Case" as type, properties(c) as props
+    def _normalize_relation_types(self, relation_types: Optional[List[str]]) -> List[str]:
+        if not relation_types:
+            return []
+        normalized = []
+        seen = set()
+        for rel in relation_types:
+            if not rel:
+                continue
+            rel_name = rel.strip().upper()
+            if not rel_name or rel_name in seen:
+                continue
+            seen.add(rel_name)
+            normalized.append(rel_name)
+        return normalized
+
+    def _primary_label(self, labels: List[str]) -> str:
+        if labels:
+            return labels[0]
+        return "Node"
+
+    def _sanitize_node_properties(self, node_type: str, props: Dict[str, Any]) -> Dict[str, Any]:
+        safe_props = dict(props or {})
+        if node_type == "Chunk":
+            safe_props.pop("embedding", None)
+            safe_props.pop("text", None)
+        return safe_props
+
+    def _format_node_label(self, node_type: str, props: Dict[str, Any]) -> str:
+        if node_type == "Case":
+            return props.get("name") or props.get("case_id") or "Case"
+        if node_type == "Evidence":
+            return props.get("filename") or props.get("evidence_id") or "Evidence"
+        if node_type == "Entity":
+            return props.get("name") or "Entity"
+        if node_type == "Chunk":
+            chunk_index = props.get("chunk_index")
+            if chunk_index is not None:
+                return f"Chunk {chunk_index}"
+            return props.get("chunk_id") or "Chunk"
+        return props.get("name") or props.get("id") or node_type
+
+    def _build_node(self, node_id: str, labels: List[str], props: Dict[str, Any]) -> Dict[str, Any]:
+        node_type = self._primary_label(labels)
+        safe_props = self._sanitize_node_properties(node_type, props)
+        return {
+            "id": node_id,
+            "label": self._format_node_label(node_type, safe_props),
+            "type": node_type,
+            "properties": safe_props
+        }
+
+    def _get_co_occurs_stats(self, case_id: str) -> Tuple[int, int]:
+        query = """
+        MATCH (c:Case {case_id: $case_id})-[:HAS_ENTITY]->(ent:Entity)-[r:CO_OCCURS]->(other:Entity)
+        WITH count(r) as rel_count,
+             collect(DISTINCT ent) as sources,
+             collect(DISTINCT other) as targets
+        WITH rel_count, sources + targets as all_nodes
+        UNWIND all_nodes as node
+        RETURN rel_count, count(DISTINCT node) as entity_count
         """
-        case_result = self.session.run(case_query, user_id=self.user_id, case_id=case_id).single()
-        
-        if not case_result:
-            return {"nodes": [], "edges": []}
+        result = self.session.run(query, user_id=self.user_id, case_id=case_id).single()
+        if not result:
+            return 0, 0
+        return int(result["rel_count"] or 0), int(result["entity_count"] or 0)
+
+    def _get_relation_stats(self, case_id: str, relation_type: str) -> Tuple[int, int]:
+        rel_type = (relation_type or "").strip().upper()
+        if not rel_type:
+            return 0, 0
+        if rel_type == "CO_OCCURS":
+            return self._get_co_occurs_stats(case_id)
+
+        relation_queries = {
+            "HAS_EVIDENCE": """
+            MATCH (c:Case {case_id: $case_id})-[r:HAS_EVIDENCE]->(e:Evidence)
+            WITH count(r) as rel_count,
+                 collect(DISTINCT c) as sources,
+                 collect(DISTINCT e) as targets
+            WITH rel_count, sources + targets as all_nodes
+            UNWIND all_nodes as node
+            RETURN rel_count, count(DISTINCT node) as entity_count
+            """,
+            "HAS_ENTITY": """
+            MATCH (c:Case {case_id: $case_id})-[r:HAS_ENTITY]->(ent:Entity)
+            WITH count(r) as rel_count,
+                 collect(DISTINCT c) as sources,
+                 collect(DISTINCT ent) as targets
+            WITH rel_count, sources + targets as all_nodes
+            UNWIND all_nodes as node
+            RETURN rel_count, count(DISTINCT node) as entity_count
+            """,
+            "HAS_CHUNK": """
+            MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(e:Evidence)-[r:HAS_CHUNK]->(ch:Chunk)
+            WITH count(r) as rel_count,
+                 collect(DISTINCT e) as sources,
+                 collect(DISTINCT ch) as targets
+            WITH rel_count, sources + targets as all_nodes
+            UNWIND all_nodes as node
+            RETURN rel_count, count(DISTINCT node) as entity_count
+            """,
+            "MENTIONS": """
+            MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(:Evidence)-[:HAS_CHUNK]->(ch:Chunk)-[r:MENTIONS]->(ent:Entity)
+            WITH count(r) as rel_count,
+                 collect(DISTINCT ch) as sources,
+                 collect(DISTINCT ent) as targets
+            WITH rel_count, sources + targets as all_nodes
+            UNWIND all_nodes as node
+            RETURN rel_count, count(DISTINCT node) as entity_count
+            """,
+        }
+
+        if rel_type in relation_queries:
+            result = self.session.run(
+                relation_queries[rel_type],
+                user_id=self.user_id,
+                case_id=case_id,
+            ).single()
+        else:
+            result = self.session.run(
+                """
+                MATCH (c:Case {case_id: $case_id})
+                MATCH p = (c)-[*1..4]-(n)
+                UNWIND relationships(p) as rel
+                WITH DISTINCT rel
+                WHERE type(rel) = $relation_type
+                WITH collect(rel) as rels
+                WITH rels, size(rels) as rel_count
+                UNWIND rels as rel
+                WITH rel_count,
+                     collect(DISTINCT startNode(rel)) as sources,
+                     collect(DISTINCT endNode(rel)) as targets
+                WITH rel_count, sources + targets as all_nodes
+                UNWIND all_nodes as node
+                RETURN rel_count, count(DISTINCT node) as entity_count
+                """,
+                user_id=self.user_id,
+                case_id=case_id,
+                relation_type=rel_type,
+            ).single()
+
+        if not result:
+            return 0, 0
+        return int(result["rel_count"] or 0), int(result["entity_count"] or 0)
+
+    def _should_limit_relation(self, case_id: str, relation_type: str) -> bool:
+        rel_count, entity_count = self._get_relation_stats(case_id, relation_type)
+        return (rel_count + entity_count) > self.RELATION_TOTAL_THRESHOLD
+
+    def get_network(
+        self,
+        case_id: str,
+        relation_types: Optional[List[str]] = None,
+        co_occurs_max_entities: Optional[int] = None,
+        co_occurs_max_edges: Optional[int] = None,
+    ):
+        if not relation_types:
+            # Fetch Case node
+            case_query = """
+            MATCH (c:Case {case_id: $case_id})
+            RETURN elementId(c) as id, c.name as label, "Case" as type, properties(c) as props
+            """
+            case_result = self.session.run(case_query, user_id=self.user_id, case_id=case_id).single()
             
-        nodes = [{
-            "id": case_result["id"],
-            "label": case_result["label"],
-            "type": "Case",
-            "properties": case_result["props"]
-        }]
-        edges = []
-        
-        # Fetch Evidence nodes and edges
-        evidence_query = """
-        MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(e:Evidence)
-        RETURN elementId(e) as id, e.filename as label, "Evidence" as type, properties(e) as props, elementId(c) as source_id
-        """
-        evidence_results = self.session.run(evidence_query, user_id=self.user_id, case_id=case_id)
-        
-        for record in evidence_results:
-            nodes.append({
-                "id": record["id"],
-                "label": record["label"],
-                "type": "Evidence",
-                "properties": record["props"]
-            })
-            edges.append({
-                "id": f"{record['source_id']}_{record['id']}",
-                "source": record["source_id"],
-                "target": record["id"],
-                "label": "HAS_EVIDENCE"
-            })
+            if not case_result:
+                return {"nodes": [], "edges": []}
+                
+            nodes = [{
+                "id": case_result["id"],
+                "label": case_result["label"],
+                "type": "Case",
+                "properties": case_result["props"]
+            }]
+            edges = []
             
-        # Fetch Entity nodes and edges (aggregated from evidence)
-        entity_query = """
-        MATCH (c:Case {case_id: $case_id})
-        MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)-[:HAS_CHUNK]->(ch:Chunk)-[:MENTIONS]->(ent:Entity)
-        RETURN DISTINCT elementId(ent) as id, ent.name as label, "Entity" as type, properties(ent) as props, elementId(e) as source_id
-        """
-        entity_results = self.session.run(entity_query, user_id=self.user_id, case_id=case_id)
-        
-        existing_node_ids = {n["id"] for n in nodes}
-        
-        for record in entity_results:
-            if record["id"] not in existing_node_ids:
+            # Fetch Evidence nodes and edges
+            evidence_query = """
+            MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(e:Evidence)
+            RETURN elementId(e) as id, e.filename as label, "Evidence" as type, properties(e) as props, elementId(c) as source_id
+            """
+            evidence_results = self.session.run(evidence_query, user_id=self.user_id, case_id=case_id)
+            
+            for record in evidence_results:
                 nodes.append({
                     "id": record["id"],
                     "label": record["label"],
-                    "type": "Entity", # could be specific type from props
+                    "type": "Evidence",
                     "properties": record["props"]
                 })
-                existing_node_ids.add(record["id"])
+                edges.append({
+                    "id": f"{record['source_id']}_{record['id']}",
+                    "source": record["source_id"],
+                    "target": record["id"],
+                    "label": "HAS_EVIDENCE"
+                })
+                
+            # Fetch Entity nodes and edges (aggregated from evidence)
+            entity_query = """
+            MATCH (c:Case {case_id: $case_id})
+            MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)-[:HAS_CHUNK]->(ch:Chunk)-[:MENTIONS]->(ent:Entity)
+            RETURN DISTINCT elementId(ent) as id, ent.name as label, "Entity" as type, properties(ent) as props, elementId(e) as source_id
+            """
+            entity_results = self.session.run(entity_query, user_id=self.user_id, case_id=case_id)
             
-            # Add edge from Evidence to Entity
-            edge_id = f"{record['source_id']}_{record['id']}"
+            existing_node_ids = {n["id"] for n in nodes}
+            
+            for record in entity_results:
+                if record["id"] not in existing_node_ids:
+                    nodes.append({
+                        "id": record["id"],
+                        "label": record["label"],
+                        "type": "Entity", # could be specific type from props
+                        "properties": record["props"]
+                    })
+                    existing_node_ids.add(record["id"])
+                
+                # Add edge from Evidence to Entity
+                edge_id = f"{record['source_id']}_{record['id']}"
+                edges.append({
+                    "id": edge_id,
+                    "source": record["source_id"],
+                    "target": record["id"],
+                    "label": "MENTIONS"
+                })
+                
+            return {"nodes": nodes, "edges": edges}
+
+        normalized_relations = self._normalize_relation_types(relation_types)
+        if not normalized_relations:
+            return {"nodes": [], "edges": []}
+
+        nodes_by_id: Dict[str, Dict[str, Any]] = {}
+        edges: List[Dict[str, Any]] = []
+        edge_ids = set()
+
+        def add_edge_record(record: Any):
+            source_id = record["source_id"]
+            target_id = record["target_id"]
+            rel_type = record["rel_type"]
+            rel_id = record.get("rel_id") or f"{source_id}_{target_id}_{rel_type}"
+
+            if rel_id in edge_ids:
+                return
+            edge_ids.add(rel_id)
+
+            if source_id not in nodes_by_id:
+                nodes_by_id[source_id] = self._build_node(
+                    source_id,
+                    record.get("source_labels") or [],
+                    record.get("source_props") or {}
+                )
+            if target_id not in nodes_by_id:
+                nodes_by_id[target_id] = self._build_node(
+                    target_id,
+                    record.get("target_labels") or [],
+                    record.get("target_props") or {}
+                )
+
             edges.append({
-                "id": edge_id,
-                "source": record["source_id"],
-                "target": record["id"],
-                "label": "MENTIONS"
+                "id": rel_id,
+                "source": source_id,
+                "target": target_id,
+                "label": rel_type
             })
-            
-        return {"nodes": nodes, "edges": edges}
+
+        def run_relation_query(query: str, params: Optional[Dict[str, Any]] = None):
+            query_params = {"case_id": case_id}
+            if params:
+                query_params.update(params)
+            results = self.session.run(query, user_id=self.user_id, **query_params)
+            for record in results:
+                add_edge_record(record)
+
+        known_relations = {"HAS_EVIDENCE", "HAS_ENTITY", "HAS_CHUNK", "MENTIONS", "CO_OCCURS"}
+        explicit_relations = {rel for rel in normalized_relations if rel in known_relations}
+        other_relations = [rel for rel in normalized_relations if rel not in known_relations]
+
+        if "HAS_EVIDENCE" in explicit_relations:
+             limit_edges = self._should_limit_relation(case_id, "HAS_EVIDENCE")
+             if limit_edges:
+              run_relation_query("""
+              MATCH (c:Case {case_id: $case_id})-[r:HAS_EVIDENCE]->(e:Evidence)
+              WITH c, e, r
+              ORDER BY coalesce(e.uploaded_at, 0) DESC
+              LIMIT $max_edges
+              RETURN elementId(c) as source_id,
+                  labels(c) as source_labels,
+                  properties(c) as source_props,
+                  elementId(e) as target_id,
+                  labels(e) as target_labels,
+                  properties(e) as target_props,
+                  type(r) as rel_type,
+                  elementId(r) as rel_id
+              """, {"max_edges": self.RELATION_MAX_EDGES})
+             else:
+              run_relation_query("""
+              MATCH (c:Case {case_id: $case_id})-[r:HAS_EVIDENCE]->(e:Evidence)
+              RETURN elementId(c) as source_id,
+                  labels(c) as source_labels,
+                  properties(c) as source_props,
+                  elementId(e) as target_id,
+                  labels(e) as target_labels,
+                  properties(e) as target_props,
+                  type(r) as rel_type,
+                  elementId(r) as rel_id
+              """)
+
+        if "HAS_ENTITY" in explicit_relations:
+             limit_edges = self._should_limit_relation(case_id, "HAS_ENTITY")
+             if limit_edges:
+              run_relation_query("""
+              MATCH (c:Case {case_id: $case_id})-[r:HAS_ENTITY]->(ent:Entity)
+              WITH c, ent, r
+              ORDER BY coalesce(ent.created_at, 0) DESC, ent.name ASC
+              LIMIT $max_edges
+              RETURN elementId(c) as source_id,
+                  labels(c) as source_labels,
+                  properties(c) as source_props,
+                  elementId(ent) as target_id,
+                  labels(ent) as target_labels,
+                  properties(ent) as target_props,
+                  type(r) as rel_type,
+                  elementId(r) as rel_id
+              """, {"max_edges": self.RELATION_MAX_EDGES})
+             else:
+              run_relation_query("""
+              MATCH (c:Case {case_id: $case_id})-[r:HAS_ENTITY]->(ent:Entity)
+              RETURN elementId(c) as source_id,
+                  labels(c) as source_labels,
+                  properties(c) as source_props,
+                  elementId(ent) as target_id,
+                  labels(ent) as target_labels,
+                  properties(ent) as target_props,
+                  type(r) as rel_type,
+                  elementId(r) as rel_id
+              """)
+
+        if "HAS_CHUNK" in explicit_relations:
+             limit_edges = self._should_limit_relation(case_id, "HAS_CHUNK")
+             if limit_edges:
+              run_relation_query("""
+              MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(e:Evidence)-[r:HAS_CHUNK]->(ch:Chunk)
+              WITH e, ch, r
+              ORDER BY coalesce(ch.timestamp, 0) DESC, coalesce(ch.chunk_index, 0) DESC
+              LIMIT $max_edges
+              RETURN elementId(e) as source_id,
+                  labels(e) as source_labels,
+                  properties(e) as source_props,
+                  elementId(ch) as target_id,
+                  labels(ch) as target_labels,
+                  properties(ch) as target_props,
+                  type(r) as rel_type,
+                  elementId(r) as rel_id
+              """, {"max_edges": self.RELATION_MAX_EDGES})
+             else:
+              run_relation_query("""
+              MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(e:Evidence)-[r:HAS_CHUNK]->(ch:Chunk)
+              RETURN elementId(e) as source_id,
+                  labels(e) as source_labels,
+                  properties(e) as source_props,
+                  elementId(ch) as target_id,
+                  labels(ch) as target_labels,
+                  properties(ch) as target_props,
+                  type(r) as rel_type,
+                  elementId(r) as rel_id
+              """)
+
+        if "MENTIONS" in explicit_relations:
+            limit_edges = self._should_limit_relation(case_id, "MENTIONS")
+            if "HAS_CHUNK" in explicit_relations:
+                if limit_edges:
+                    run_relation_query("""
+                    MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(:Evidence)-[:HAS_CHUNK]->(ch:Chunk)-[r:MENTIONS]->(ent:Entity)
+                    WITH ch, ent, r
+                    ORDER BY coalesce(ch.risk_score, 0) DESC
+                    LIMIT $max_edges
+                    RETURN elementId(ch) as source_id,
+                           labels(ch) as source_labels,
+                           properties(ch) as source_props,
+                           elementId(ent) as target_id,
+                           labels(ent) as target_labels,
+                           properties(ent) as target_props,
+                           type(r) as rel_type,
+                           elementId(r) as rel_id
+                    """, {"max_edges": self.RELATION_MAX_EDGES})
+                else:
+                    run_relation_query("""
+                    MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(:Evidence)-[:HAS_CHUNK]->(ch:Chunk)-[r:MENTIONS]->(ent:Entity)
+                    RETURN elementId(ch) as source_id,
+                           labels(ch) as source_labels,
+                           properties(ch) as source_props,
+                           elementId(ent) as target_id,
+                           labels(ent) as target_labels,
+                           properties(ent) as target_props,
+                           type(r) as rel_type,
+                           elementId(r) as rel_id
+                    """)
+            else:
+                if limit_edges:
+                    run_relation_query("""
+                    MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(e:Evidence)-[:HAS_CHUNK]->(:Chunk)-[:MENTIONS]->(ent:Entity)
+                    WITH e, ent
+                    ORDER BY coalesce(e.uploaded_at, 0) DESC, ent.name ASC
+                    LIMIT $max_edges
+                    RETURN DISTINCT elementId(e) as source_id,
+                           labels(e) as source_labels,
+                           properties(e) as source_props,
+                           elementId(ent) as target_id,
+                           labels(ent) as target_labels,
+                           properties(ent) as target_props,
+                           "MENTIONS" as rel_type
+                    """, {"max_edges": self.RELATION_MAX_EDGES})
+                else:
+                    run_relation_query("""
+                    MATCH (c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(e:Evidence)-[:HAS_CHUNK]->(:Chunk)-[:MENTIONS]->(ent:Entity)
+                    RETURN DISTINCT elementId(e) as source_id,
+                           labels(e) as source_labels,
+                           properties(e) as source_props,
+                           elementId(ent) as target_id,
+                           labels(ent) as target_labels,
+                           properties(ent) as target_props,
+                           "MENTIONS" as rel_type
+                    """)
+
+        if "CO_OCCURS" in explicit_relations:
+            force_optimized = (
+                self.CO_OCCURS_EDGE_THRESHOLD <= 0
+                and self.CO_OCCURS_ENTITY_THRESHOLD <= 0
+            )
+            rel_count, entity_count = (0, 0)
+            if not force_optimized:
+                rel_count, entity_count = self._get_co_occurs_stats(case_id)
+            if (
+                force_optimized
+                or rel_count >= self.CO_OCCURS_EDGE_THRESHOLD
+                or entity_count >= self.CO_OCCURS_ENTITY_THRESHOLD
+            ):
+                max_entities = (
+                    co_occurs_max_entities
+                    if co_occurs_max_entities and co_occurs_max_entities > 0
+                    else self.CO_OCCURS_MAX_ENTITIES
+                )
+                max_edges = (
+                    co_occurs_max_edges
+                    if co_occurs_max_edges and co_occurs_max_edges > 0
+                    else self.CO_OCCURS_MAX_EDGES
+                )
+                run_relation_query("""
+                MATCH (c:Case {case_id: $case_id})-[:HAS_ENTITY]->(ent:Entity)
+                MATCH (ent)-[r:CO_OCCURS]-(:Entity)
+                WITH ent, sum(coalesce(r.count, 1)) as co_score
+                ORDER BY co_score DESC
+                LIMIT $max_entities
+                WITH collect(ent) as ents
+                UNWIND ents as ent
+                MATCH (ent)-[r:CO_OCCURS]->(other:Entity)
+                WHERE other IN ents
+                WITH ent, other, r
+                ORDER BY coalesce(r.count, 1) DESC
+                LIMIT $max_edges
+                RETURN elementId(ent) as source_id,
+                       labels(ent) as source_labels,
+                       properties(ent) as source_props,
+                       elementId(other) as target_id,
+                       labels(other) as target_labels,
+                       properties(other) as target_props,
+                       type(r) as rel_type,
+                       elementId(r) as rel_id
+                """, {
+                    "max_entities": max_entities,
+                    "max_edges": max_edges,
+                })
+            else:
+                run_relation_query("""
+                MATCH (c:Case {case_id: $case_id})-[:HAS_ENTITY]->(ent:Entity)-[r:CO_OCCURS]->(other:Entity)
+                RETURN elementId(ent) as source_id,
+                       labels(ent) as source_labels,
+                       properties(ent) as source_props,
+                       elementId(other) as target_id,
+                       labels(other) as target_labels,
+                       properties(other) as target_props,
+                       type(r) as rel_type,
+                       elementId(r) as rel_id
+                """)
+
+        if other_relations:
+            for relation_type in other_relations:
+                limit_edges = self._should_limit_relation(case_id, relation_type)
+                if limit_edges:
+                    run_relation_query("""
+                    MATCH (c:Case {case_id: $case_id})
+                    MATCH p = (c)-[*1..4]-(n)
+                    UNWIND relationships(p) as rel
+                    WITH DISTINCT rel
+                    WHERE type(rel) = $relation_type
+                    WITH rel
+                    ORDER BY elementId(rel)
+                    LIMIT $max_edges
+                    RETURN elementId(startNode(rel)) as source_id,
+                           labels(startNode(rel)) as source_labels,
+                           properties(startNode(rel)) as source_props,
+                           elementId(endNode(rel)) as target_id,
+                           labels(endNode(rel)) as target_labels,
+                           properties(endNode(rel)) as target_props,
+                           type(rel) as rel_type,
+                           elementId(rel) as rel_id
+                    """, {
+                        "relation_type": relation_type,
+                        "max_edges": self.RELATION_MAX_EDGES,
+                    })
+                else:
+                    run_relation_query("""
+                    MATCH (c:Case {case_id: $case_id})
+                    MATCH p = (c)-[*1..4]-(n)
+                    UNWIND relationships(p) as rel
+                    WITH DISTINCT rel
+                    WHERE type(rel) = $relation_type
+                    RETURN elementId(startNode(rel)) as source_id,
+                           labels(startNode(rel)) as source_labels,
+                           properties(startNode(rel)) as source_props,
+                           elementId(endNode(rel)) as target_id,
+                           labels(endNode(rel)) as target_labels,
+                           properties(endNode(rel)) as target_props,
+                           type(rel) as rel_type,
+                           elementId(rel) as rel_id
+                    """, {"relation_type": relation_type})
+
+        return {"nodes": list(nodes_by_id.values()), "edges": edges}
+
+    def get_network_relations(self, case_id: str) -> List[Dict[str, Any]]:
+        query = """
+        MATCH (c:Case {case_id: $case_id})
+        MATCH p = (c)-[*1..4]-(n)
+        UNWIND relationships(p) as rel
+        WITH DISTINCT rel, type(rel) as rel_type
+        RETURN rel_type, count(rel) as rel_count
+        ORDER BY rel_count DESC
+        """
+        results = self.session.run(query, user_id=self.user_id, case_id=case_id)
+        return [
+            {"type": record["rel_type"], "count": record["rel_count"]}
+            for record in results
+            if record.get("rel_type")
+        ]
 
     def get_mindmap(self, case_id: str):
         query = """

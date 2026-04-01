@@ -43,6 +43,7 @@ import {
   CheckCircle,
   MessageSquare,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react";
 
 const statusColor: Record<string, string> = {
@@ -65,6 +66,7 @@ export default function CaseOverviewPage() {
   const user = useAuthStore((s) => s.user);
   const trackedCaseRef = useRef<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   
   // Track case view only once per case
   useEffect(() => {
@@ -109,6 +111,36 @@ export default function CaseOverviewPage() {
       });
     } finally {
       setIsClosing(false);
+    }
+  };
+
+  const handleReopenCase = async () => {
+    if (!user) return;
+
+    setIsReopening(true);
+    try {
+      await updateCase.mutateAsync({
+        caseId,
+        data: { status: "open" },
+      });
+
+      toast.success("Case reopened", {
+        description: `${getCaseName(caseData)} has been reopened`,
+      });
+
+      addActivity({
+        type: "update",
+        action: `Reopened case: ${getCaseName(caseData)}`,
+        target: caseId,
+        userId: user.id,
+      });
+    } catch (error) {
+      console.error("Failed to reopen case:", error);
+      toast.error("Failed to reopen case", {
+        description: "Something went wrong. Please try again.",
+      });
+    } finally {
+      setIsReopening(false);
     }
   };
 
@@ -180,6 +212,38 @@ export default function CaseOverviewPage() {
                     className="bg-[#22c55e] hover:bg-[#22c55e]/90"
                   >
                     {isClosing ? "Closing..." : "Close Case"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          {caseData && caseData.status === "closed" && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+                  suppressHydrationWarning
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reopen Case
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="border-border bg-card">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-foreground">Reopen this case?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-muted-foreground">
+                    This will mark the case as active again and return it to the ongoing investigations list.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="border-border">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleReopenCase}
+                    disabled={isReopening}
+                    className="bg-primary hover:bg-primary/90"
+                  >
+                    {isReopening ? "Reopening..." : "Reopen Case"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

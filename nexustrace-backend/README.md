@@ -252,6 +252,13 @@ SPACY_MODEL=en_core_web_sm
 MAX_CHUNK_TOKENS=600
 CHUNK_OVERLAP=100
 TOP_K_RETRIEVAL=5
+PYTHONPATH=.
+
+# SMTP settings for password reset emails
+EMAIL_PROVIDER=mailersend
+MAILERSEND_API_KEY= # Api key for Mailersend (token)
+SMTP_FROM_EMAIL=  # verified domain
+SMTP_FROM_NAME=  # NexusTrace Security
 ```
 
 **Security Note**: Never commit `.env` to version control. Use `.env.example` as a template.
@@ -701,9 +708,9 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 📞 Contact
 
-- **GitHub**: [@yourusername](https://github.com/yourusername)
-- **Project**: [NexusTrace](https://github.com/yourusername/nexustrace)
-- **Website**: https://nexustrace.io (if available)
+- **GitHub**: [@reyandabreo](https://github.com/reyandabreo)
+- **Project**: [NexusTrace](https://github.com/reyandabreo/nexustrace)
+- **Website**: https://nexustrace.io (currently unavailable)
 
 ---
 

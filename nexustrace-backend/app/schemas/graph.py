@@ -13,6 +13,10 @@ class GraphEdge(BaseModel):
     target: str
     label: str # HAS_EVIDENCE, MENTIONS, etc.
 
+class RelationTypeCount(BaseModel):
+    type: str
+    count: int
+
 class GraphResponse(BaseModel):
     nodes: List[GraphNode]
     edges: List[GraphEdge]

@@ -19,6 +19,11 @@ export interface NetworkGraph {
   edges: GraphEdge[];
 }
 
+export interface RelationTypeCount {
+  type: string;
+  count: number;
+}
+
 export interface MindmapNode {
   id: string;
   label: string;

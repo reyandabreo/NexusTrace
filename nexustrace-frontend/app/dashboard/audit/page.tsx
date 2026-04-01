@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ShieldCheck,
   Search,
@@ -8,7 +8,6 @@ import {
   User,
   Clock,
   Globe,
-  Key,
   FileText,
   LogIn,
   LogOut,
@@ -41,14 +40,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useAuditStore, AuditAction } from "@/store/auditStore";
 import { useAuthStore } from "@/store/authStore";
@@ -89,6 +80,31 @@ function formatTime(ts: string) {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+function formatActionLabel(action: string) {
+  return action
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatDateHeading(dateKey: string) {
+  const today = new Date();
+  const date = new Date(dateKey);
+  const todayKey = today.toISOString().slice(0, 10);
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayKey = yesterday.toISOString().slice(0, 10);
+
+  if (dateKey === todayKey) return "Today";
+  if (dateKey === yesterdayKey) return "Yesterday";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -216,6 +232,19 @@ export default function AuditTrailPage() {
     return matchesSearch && matchesStatus && matchesAction && matchesDate;
   });
 
+  const groupedEntries = useMemo(() => {
+    const groups = new Map<string, typeof filtered>();
+    filtered.forEach((entry) => {
+      const dateKey = new Date(entry.timestamp).toISOString().slice(0, 10);
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, []);
+      }
+      groups.get(dateKey)!.push(entry);
+    });
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => b.localeCompare(a));
+    return { groups, sortedKeys };
+  }, [filtered]);
+
   // Calculate stats
   const stats = {
     total: filtered.length,
@@ -321,195 +350,205 @@ export default function AuditTrailPage() {
         </div>
         
         {/* Filters & Export Row */}
-        <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-          {/* Left: Filter Dropdowns */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-35 border-border bg-card text-sm text-foreground" suppressHydrationWarning>
-                <Filter className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="rounded-2xl border border-border bg-card/60 p-3 sm:p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            {/* Left: Filter Dropdowns */}
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9 w-full border-border bg-card text-sm text-foreground" suppressHydrationWarning>
+                  <Filter className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="border-border bg-card">
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={actionFilter} onValueChange={setActionFilter}>
+                <SelectTrigger className="h-9 w-full border-border bg-card text-sm text-foreground" suppressHydrationWarning>
+                  <Activity className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Action" />
+                </SelectTrigger>
+                <SelectContent className="border-border bg-card">
+                  <SelectItem value="all">All Actions</SelectItem>
+                  <SelectItem value="LOGIN">Login</SelectItem>
+                  <SelectItem value="LOGOUT">Logout</SelectItem>
+                  <SelectItem value="CREATE_CASE">Create Case</SelectItem>
+                  <SelectItem value="UPLOAD_EVIDENCE">Upload Evidence</SelectItem>
+                  <SelectItem value="RAG_QUERY">RAG Query</SelectItem>
+                  <SelectItem value="EXPORT_REPORT">Export Report</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={dateRange} onValueChange={setDateRange}>
+                <SelectTrigger className="h-9 w-full border-border bg-card text-sm text-foreground" suppressHydrationWarning>
+                  <Calendar className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Date" />
+                </SelectTrigger>
+                <SelectContent className="border-border bg-card">
+                  <SelectItem value="1">Last 24 Hours</SelectItem>
+                  <SelectItem value="7">Last 7 days</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                  <SelectItem value="all">All time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
-            <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="h-9 w-37.5 border-border bg-card text-sm text-foreground" suppressHydrationWarning>
-                <Activity className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                <SelectValue placeholder="Action" />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="all">All Actions</SelectItem>
-                <SelectItem value="LOGIN">Login</SelectItem>
-                <SelectItem value="LOGOUT">Logout</SelectItem>
-                <SelectItem value="CREATE_CASE">Create Case</SelectItem>
-                <SelectItem value="UPLOAD_EVIDENCE">Upload Evidence</SelectItem>
-                <SelectItem value="RAG_QUERY">RAG Query</SelectItem>
-                <SelectItem value="EXPORT_REPORT">Export Report</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="h-9 w-35 border-border bg-card text-sm text-foreground" suppressHydrationWarning>
-                <Calendar className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                <SelectValue placeholder="Date" />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="1">Last 24 Hours</SelectItem>
-                <SelectItem value="7">Last 7 days</SelectItem>
-                <SelectItem value="30">Last 30 days</SelectItem>
-                <SelectItem value="90">Last 90 days</SelectItem>
-                <SelectItem value="all">All time</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Right: Export Buttons */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 border-border bg-card text-sm text-foreground hover:bg-muted"
-              onClick={() => {
-                exportAuditLogs("csv");
-                toast.success("Audit logs exported", {
-                  description: "CSV file has been downloaded",
-                });
-              }}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 border-border bg-card text-sm text-foreground hover:bg-muted"
-              onClick={() => {
-                exportAuditLogs("json");
-                toast.success("Audit logs exported", {
-                  description: "JSON file has been downloaded",
-                });
-              }}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export JSON
-            </Button>
+            {/* Right: Export Buttons */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 w-full border-border bg-card text-sm text-foreground hover:bg-muted sm:w-auto"
+                onClick={() => {
+                  exportAuditLogs("csv");
+                  toast.success("Audit logs exported", {
+                    description: "CSV file has been downloaded",
+                  });
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 w-full border-border bg-card text-sm text-foreground hover:bg-muted sm:w-auto"
+                onClick={() => {
+                  exportAuditLogs("json");
+                  toast.success("Audit logs exported", {
+                    description: "JSON file has been downloaded",
+                  });
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export JSON
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Audit Table */}
+      {/* Audit Feed */}
       <Card className="border-border bg-card">
-        <div className="overflow-x-auto">
+        <CardHeader className="border-b border-border/60">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-sm font-semibold text-foreground">
+                Activity Feed
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Detailed events ordered by most recent activity
+              </p>
+            </div>
+            <Badge variant="outline" className="border-border text-xs">
+              {filtered.length} events
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
           <ScrollArea className="h-[calc(100vh-28rem)] w-full">
-            <Table className="min-w-200">
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Timestamp
-                </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  User
-                </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Action
-                </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Resource
-                </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  IP Address
-                </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Status
-                </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Details
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length > 0 ? (
-                filtered.map((entry) => {
-                  const Icon = actionIcons[entry.action] || ShieldCheck;
-                  const iconColor = actionColors[entry.action] || "text-muted-foreground";
-                  
-                  return (
-                    <TableRow
-                      key={entry.id}
-                      className="border-border hover:bg-muted/30"
-                    >
-                      <TableCell className="text-xs text-muted-foreground font-mono">
-                        {formatTime(entry.timestamp)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted">
-                            <User className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                          <span className="text-xs font-medium text-foreground">
-                            {entry.user}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Icon className={`h-3.5 w-3.5 ${iconColor}`} />
-                          <span className="text-xs text-foreground">
-                            {entry.action.replace(/_/g, " ")}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-48 truncate">
-                        {entry.resource}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-mono">
-                        {entry.ip}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            entry.status === "success"
-                              ? "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#22c55e] text-[10px]"
-                              : "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444] text-[10px]"
-                          }
-                        >
-                          {entry.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-64 truncate">
-                        {entry.details || "-"}
-                        {entry.duration && (
-                          <span className="ml-2 text-[10px] text-primary">
-                            ({entry.duration}ms)
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <ShieldCheck className="h-6 w-6 text-muted-foreground/30" />
-                      <p className="text-sm text-muted-foreground">
-                        {entries.length === 0 
-                          ? "No audit entries yet. Actions will be logged automatically." 
-                          : "No entries match your filters"}
-                      </p>
+            <div className="space-y-6 p-4">
+              {groupedEntries.sortedKeys.length > 0 ? (
+                groupedEntries.sortedKeys.map((dateKey) => (
+                  <div key={dateKey} className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        {formatDateHeading(dateKey)}
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                      <Badge variant="outline" className="border-border text-[10px]">
+                        {groupedEntries.groups.get(dateKey)?.length || 0} events
+                      </Badge>
                     </div>
-                  </TableCell>
-                </TableRow>
+                    <div className="space-y-3">
+                      {groupedEntries.groups.get(dateKey)!.map((entry) => {
+                        const Icon = actionIcons[entry.action] || ShieldCheck;
+                        const iconColor = actionColors[entry.action] || "text-muted-foreground";
+
+                        return (
+                          <Card key={entry.id} className="border-border bg-card/70 shadow-none">
+                            <CardContent className="p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="flex items-start gap-3">
+                                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/60">
+                                    <Icon className={`h-4 w-4 ${iconColor}`} />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-sm font-semibold text-foreground">
+                                        {formatActionLabel(entry.action)}
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          entry.status === "success"
+                                            ? "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#22c55e] text-[10px]"
+                                            : "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444] text-[10px]"
+                                        }
+                                      >
+                                        {entry.status}
+                                      </Badge>
+                                      {entry.duration && (
+                                        <Badge variant="outline" className="border-border text-[10px]">
+                                          {entry.duration}ms
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs font-medium text-foreground">
+                                      {entry.resource}
+                                    </p>
+                                    {entry.details && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {entry.details}
+                                      </p>
+                                    )}
+                                    {entry.errorMessage && (
+                                      <div className="flex items-start gap-1 text-[11px] text-red-400">
+                                        <AlertCircle className="h-3.5 w-3.5" />
+                                        <span>{entry.errorMessage}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground sm:flex-col sm:items-end">
+                                  <span className="flex items-center gap-1">
+                                    <User className="h-3.5 w-3.5" />
+                                    {entry.user}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    {formatTime(entry.timestamp)}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Globe className="h-3.5 w-3.5" />
+                                    {entry.ip}
+                                  </span>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center gap-2 py-12">
+                  <ShieldCheck className="h-6 w-6 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">
+                    {entries.length === 0
+                      ? "No audit entries yet. Actions will be logged automatically."
+                      : "No entries match your filters"}
+                  </p>
+                </div>
               )}
-            </TableBody>
-          </Table>
-        </ScrollArea>
-        </div>
+            </div>
+          </ScrollArea>
+        </CardContent>
       </Card>
     </div>
   );

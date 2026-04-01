@@ -13,8 +13,10 @@ import {
   type Node,
   type Edge,
   useReactFlow,
+  Position,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import dagre from "dagre";
 import { useMindmap } from "@/hooks/useCases";
 import { BrainCircuit } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,163 +30,44 @@ const nodeColors: Record<string, string> = {
   default: "#64748b", // Slate for deeper levels
 };
 
-// Hierarchical tree layout for mindmap
-function calculateTreeLayout(
-  node: MindmapNode,
-  level: number = 0,
-  parentX: number = 0,
-  parentY: number = 0,
-  siblingIndex: number = 0,
-  totalSiblings: number = 1,
-  nodes: Node[] = [],
-  edges: Edge[] = []
-): { nodes: Node[]; edges: Edge[] } {
-  const horizontalSpacing = 280;
-  const verticalSpacing = 150;
-  const rootX = 500;
-  const rootY = 100;
+const DAGRE_RANK_SEP = 200;
+const DAGRE_NODE_SEP = 110;
 
-  let x: number;
-  let y: number;
-
-  if (level === 0) {
-    // Root node at the top center
-    x = rootX;
-    y = rootY;
-  } else {
-    // Calculate position based on level and sibling index
-    y = rootY + level * verticalSpacing;
-    
-    // Spread children horizontally
-    const totalWidth = (totalSiblings - 1) * horizontalSpacing;
-    const startX = parentX - totalWidth / 2;
-    x = startX + siblingIndex * horizontalSpacing;
-  }
-
-  // Add node with appropriate color based on level
-  const nodeColor = 
-    level === 0 ? nodeColors.root :
-    level === 1 ? nodeColors.level1 :
-    level === 2 ? nodeColors.level2 :
-    level === 3 ? nodeColors.level3 :
-    nodeColors.default;
-
-  nodes.push({
-    id: node.id,
-    position: { x, y },
-    data: { label: node.label },
-    style: {
-      background: nodeColor,
-      color: "#fff",
-      border: "2px solid rgba(255, 255, 255, 0.2)",
-      borderRadius: level === 0 ? "50%" : "16px",
-      padding: level === 0 ? "24px" : "12px 20px",
-      fontSize: level === 0 ? "14px" : "12px",
-      fontWeight: level === 0 ? 700 : 600,
-      minWidth: level === 0 ? "120px" : "100px",
-      minHeight: level === 0 ? "120px" : "auto",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      textAlign: "center" as const,
-      boxShadow: level === 0 
-        ? "0 8px 24px rgba(139, 92, 246, 0.4)" 
-        : "0 4px 12px rgba(0, 0, 0, 0.3)",
-    },
-  });
-
-  // Add edge to parent if not root
-  if (level > 0) {
-    edges.push({
-      id: `edge-${node.id}`,
-      source: String(parentX), // We'll fix this with proper parent ID tracking
-      target: node.id,
-      animated: true,
-      style: { 
-        stroke: nodeColor, 
-        strokeWidth: 2,
-      },
-      type: "smoothstep",
-    });
-  }
-
-  // Process children
-  if (node.children && node.children.length > 0) {
-    node.children.forEach((child, index) => {
-      calculateTreeLayout(
-        child,
-        level + 1,
-        x,
-        y,
-        index,
-        node.children!.length,
-        nodes,
-        edges
-      );
-    });
-  }
-
-  return { nodes, edges };
+function estimateNodeSize(label: string, level: number) {
+  const width = level === 0 ? 180 : Math.max(130, Math.min(label.length * 7, 240));
+  const lineCount = Math.max(1, Math.ceil(label.length / 18));
+  const height = level === 0 ? 150 : Math.max(60, 36 + lineCount * 14);
+  return { width, height };
 }
 
-// Better tree layout with proper parent tracking and dynamic spacing
-function buildMindmapTree(
+function buildMindmapGraph(
   node: MindmapNode,
   level: number = 0,
   parentId: string | null = null,
-  siblingIndex: number = 0,
-  totalSiblings: number = 1,
-  parentX: number = 500,
-  parentY: number = 100
-): { nodes: Node[]; edges: Edge[] } {
-  // Much more aggressive spacing to prevent overlap completely
-  const baseHorizontalSpacing = 450; // Massively increased from 350
-  
-  // Calculate spacing based on siblings - exponential scaling for many nodes
-  let horizontalSpacing = baseHorizontalSpacing;
-  if (totalSiblings > 15) {
-    horizontalSpacing = baseHorizontalSpacing + (totalSiblings - 15) * 60;
-  } else if (totalSiblings > 10) {
-    horizontalSpacing = baseHorizontalSpacing + (totalSiblings - 10) * 50;
-  } else if (totalSiblings > 5) {
-    horizontalSpacing = baseHorizontalSpacing + (totalSiblings - 5) * 40;
-  } else if (totalSiblings > 2) {
-    horizontalSpacing = baseHorizontalSpacing + (totalSiblings - 2) * 30;
-  }
-  
-  const verticalSpacing = 250; // Increased from 200
-  const rootX = 500;
-  const rootY = 100;
+  nodes: Node[] = [],
+  edges: Edge[] = [],
+  sizes: Map<string, { width: number; height: number }> = new Map()
+): { nodes: Node[]; edges: Edge[]; sizes: Map<string, { width: number; height: number }> } {
+  const nodeColor =
+    level === 0
+      ? nodeColors.root
+      : level === 1
+      ? nodeColors.level1
+      : level === 2
+      ? nodeColors.level2
+      : level === 3
+      ? nodeColors.level3
+      : nodeColors.default;
 
-  let x: number;
-  let y: number;
+  const size = estimateNodeSize(node.label, level);
+  sizes.set(node.id, size);
 
-  if (level === 0) {
-    x = rootX;
-    y = rootY;
-  } else {
-    y = parentY + verticalSpacing;
-    // Calculate total width needed for all siblings with extra padding
-    const totalWidth = (totalSiblings - 1) * horizontalSpacing;
-    const startX = parentX - totalWidth / 2;
-    x = startX + siblingIndex * horizontalSpacing;
-  }
-
-  const nodeColor = 
-    level === 0 ? nodeColors.root :
-    level === 1 ? nodeColors.level1 :
-    level === 2 ? nodeColors.level2 :
-    level === 3 ? nodeColors.level3 :
-    nodeColors.default;
-
-  // Calculate node width - keep nodes more compact
-  const labelLength = node.label?.length || 10;
-  const minWidth = level === 0 ? 140 : Math.max(80, Math.min(labelLength * 6, 200));
-
-  const currentNode: Node = {
+  nodes.push({
     id: node.id,
-    position: { x, y },
+    position: { x: 0, y: 0 },
     data: { label: node.label },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
     style: {
       background: nodeColor,
       color: "#fff",
@@ -193,24 +76,22 @@ function buildMindmapTree(
       padding: level === 0 ? "28px" : "10px 16px",
       fontSize: level === 0 ? "14px" : "10px",
       fontWeight: level === 0 ? 700 : 600,
-      minWidth: `${minWidth}px`,
-      maxWidth: level === 0 ? "140px" : "200px",
-      minHeight: level === 0 ? "140px" : "auto",
+      minWidth: `${size.width}px`,
+      minHeight: `${size.height}px`,
+      maxWidth: level === 0 ? "180px" : "240px",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       textAlign: "center" as const,
-      boxShadow: level === 0 
-        ? "0 8px 24px rgba(139, 92, 246, 0.4)" 
-        : "0 4px 12px rgba(0, 0, 0, 0.3)",
+      boxShadow:
+        level === 0
+          ? "0 8px 24px rgba(139, 92, 246, 0.4)"
+          : "0 4px 12px rgba(0, 0, 0, 0.3)",
       wordBreak: "break-word" as const,
       whiteSpace: "normal" as const,
       overflow: "hidden" as const,
     },
-  };
-
-  const nodes: Node[] = [currentNode];
-  const edges: Edge[] = [];
+  });
 
   if (parentId) {
     edges.push({
@@ -218,8 +99,8 @@ function buildMindmapTree(
       source: parentId,
       target: node.id,
       animated: true,
-      style: { 
-        stroke: nodeColor, 
+      style: {
+        stroke: nodeColor,
         strokeWidth: 2.5,
       },
       type: "smoothstep",
@@ -227,80 +108,53 @@ function buildMindmapTree(
   }
 
   if (node.children && node.children.length > 0) {
-    node.children.forEach((child, index) => {
-      const childResult = buildMindmapTree(
-        child,
-        level + 1,
-        node.id,
-        index,
-        node.children!.length,
-        x,
-        y
-      );
-      nodes.push(...childResult.nodes);
-      edges.push(...childResult.edges);
+    node.children.forEach((child) => {
+      buildMindmapGraph(child, level + 1, node.id, nodes, edges, sizes);
     });
   }
 
-  return { nodes, edges };
+  return { nodes, edges, sizes };
 }
 
-// Collision detection and resolution to prevent node overlap
-function resolveOverlaps(nodes: Node[]): Node[] {
-  const resolvedNodes = [...nodes];
-  const minDistance = 100; // Increased from 50px - much larger buffer between nodes
-  const maxIterations = 5; // Multiple passes to ensure all overlaps are resolved
-  
-  for (let iteration = 0; iteration < maxIterations; iteration++) {
-    let adjustmentMade = false;
-    
-    // Group nodes by y position (level)
-    const levels = new Map<number, Node[]>();
-    resolvedNodes.forEach(node => {
-      const y = Math.round(node.position.y / 50) * 50; // Group by 50px tolerance
-      if (!levels.has(y)) {
-        levels.set(y, []);
-      }
-      levels.get(y)!.push(node);
-    });
-    
-    // Resolve overlaps within each level
-    levels.forEach((levelNodes) => {
-      // Sort by x position
-      levelNodes.sort((a, b) => a.position.x - b.position.x);
-      
-      // Check for overlaps and adjust positions
-      for (let i = 0; i < levelNodes.length - 1; i++) {
-        const current = levelNodes[i];
-        const next = levelNodes[i + 1];
-        
-        // Calculate actual node widths from style
-        const currentWidth = parseInt(current.style?.maxWidth as string || "200") || 200;
-        const nextWidth = parseInt(next.style?.maxWidth as string || "200") || 200;
-        
-        // Add padding to account for actual rendered size
-        const currentRight = current.position.x + (currentWidth / 2) + 30; // +30px padding
-        const nextLeft = next.position.x - (nextWidth / 2) - 30; // -30px padding
-        const gap = nextLeft - currentRight;
-        
-        // If nodes overlap or are too close
-        if (gap < minDistance) {
-          const adjustment = (minDistance - gap + 20) / 2; // Add extra 20px buffer
-          // Move current left and next right
-          current.position.x -= adjustment;
-          next.position.x += adjustment;
-          adjustmentMade = true;
-        }
-      }
-    });
-    
-    // If no adjustments were made in this iteration, we're done
-    if (!adjustmentMade) {
-      break;
-    }
-  }
-  
-  return resolvedNodes;
+function applyVerticalLayout(
+  nodes: Node[],
+  edges: Edge[],
+  sizes: Map<string, { width: number; height: number }>
+): { nodes: Node[]; edges: Edge[] } {
+  const graph = new dagre.graphlib.Graph();
+  graph.setDefaultEdgeLabel(() => ({}));
+  graph.setGraph({
+    rankdir: "LR",
+    ranksep: DAGRE_RANK_SEP,
+    nodesep: DAGRE_NODE_SEP,
+    marginx: 20,
+    marginy: 20,
+  });
+
+  nodes.forEach((node) => {
+    const size = sizes.get(node.id) || { width: 160, height: 80 };
+    graph.setNode(node.id, size);
+  });
+
+  edges.forEach((edge) => {
+    graph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(graph);
+
+  const layoutedNodes = nodes.map((node) => {
+    const size = sizes.get(node.id) || { width: 160, height: 80 };
+    const position = graph.node(node.id) || { x: 0, y: 0 };
+    return {
+      ...node,
+      position: {
+        x: position.x - size.width / 2,
+        y: position.y - size.height / 2,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
 }
 
 // Inner component that uses useReactFlow
@@ -391,13 +245,11 @@ export default function MindmapPage() {
 
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!mindmapData?.root) return { initialNodes: [], initialEdges: [] };
-    
-    const { nodes, edges } = buildMindmapTree(mindmapData.root);
-    
-    // Apply collision detection and resolution to prevent overlaps
-    const resolvedNodes = resolveOverlaps(nodes);
-    
-    return { initialNodes: resolvedNodes, initialEdges: edges };
+
+    const { nodes, edges, sizes } = buildMindmapGraph(mindmapData.root);
+    const layouted = applyVerticalLayout(nodes, edges, sizes);
+
+    return { initialNodes: layouted.nodes, initialEdges: layouted.edges };
   }, [mindmapData]);
 
   if (isLoading) {

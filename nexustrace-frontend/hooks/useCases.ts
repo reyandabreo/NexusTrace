@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { useActivityStore } from "@/store/activityStore";
 import { useAuthStore } from "@/store/authStore";
 import type { Case, CreateCaseRequest } from "@/types/case";
+import type { RelationTypeCount } from "@/types/graph";
 
 export function useCases() {
   return useQuery<Case[]>({
@@ -203,11 +204,47 @@ export function usePrioritized(caseId: string) {
   });
 }
 
-export function useNetworkGraph(caseId: string) {
+export function useNetworkGraph(
+  caseId: string,
+  relationTypes?: string[],
+  coOccursLimits?: { maxEntities?: number; maxEdges?: number }
+) {
+  const relationKey = relationTypes?.length
+    ? [...relationTypes].sort().join(",")
+    : "default";
+  const includesCoOccurs = relationTypes?.includes("CO_OCCURS");
+  const limitsKey = includesCoOccurs && coOccursLimits
+    ? `${coOccursLimits.maxEntities ?? "d"}-${coOccursLimits.maxEdges ?? "d"}`
+    : "no-co";
+
   return useQuery({
-    queryKey: ["network", caseId],
+    queryKey: ["network", caseId, relationKey, limitsKey],
     queryFn: async () => {
-      const res = await api.get(`/graph/network/${caseId}`);
+      const params: Record<string, string> = {};
+      if (relationTypes?.length) {
+        params.relations = relationTypes.join(",");
+      }
+      if (includesCoOccurs && coOccursLimits?.maxEntities) {
+        params.co_occurs_max_entities = String(coOccursLimits.maxEntities);
+      }
+      if (includesCoOccurs && coOccursLimits?.maxEdges) {
+        params.co_occurs_max_edges = String(coOccursLimits.maxEdges);
+      }
+
+      const res = await api.get(`/graph/network/${caseId}`, {
+        params: Object.keys(params).length ? params : undefined,
+      });
+      return res.data;
+    },
+    enabled: !!caseId,
+  });
+}
+
+export function useNetworkRelations(caseId: string) {
+  return useQuery<RelationTypeCount[]>({
+    queryKey: ["network-relations", caseId],
+    queryFn: async () => {
+      const res = await api.get(`/graph/network/${caseId}/relations`);
       return res.data;
     },
     enabled: !!caseId,

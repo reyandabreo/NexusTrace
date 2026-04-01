@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Shield, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Shield, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import { useLogin } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,10 +18,15 @@ import {
 } from "@/components/ui/card";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const login = useLogin();
+
+  const handleBack = () => {
+    router.push("/");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +47,18 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border bg-card">
+      <div className="w-full max-w-md">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleBack}
+          className="mb-4 gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+        <Card className="border-border bg-card">
         <CardHeader className="space-y-2 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <Shield className="h-6 w-6 text-primary" />
@@ -95,6 +112,14 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+              <div className="flex justify-end">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
             </div>
             <Button
               type="submit"
@@ -118,7 +143,8 @@ export default function LoginPage() {
             </Link>
           </p>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

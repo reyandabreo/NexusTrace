@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 100
     TOP_K_RETRIEVAL: int = 5
 
+    PASSWORD_RESET_TOKEN_TTL_MINUTES: int = 30
+
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASS: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "NexusTrace Security"
+    FRONTEND_URL: str = "http://localhost:3000"
+    SENDGRID_API_KEY: str = ""
+    EMAIL_PROVIDER: str = "auto"
+    MAILERSEND_API_KEY: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

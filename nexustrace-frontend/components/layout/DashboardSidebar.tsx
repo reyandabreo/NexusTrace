@@ -137,26 +137,20 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
         collapsed ? "w-16" : "w-60"
       )}
     >
-      {/* Collapse Toggle */}
-      <div className={cn("flex items-center p-3", collapsed ? "justify-center" : "justify-end")}>
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          {collapsed ? (
-            <ChevronRight className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronLeft className="h-3.5 w-3.5" />
-          )}
-        </button>
-      </div>
-
-      {/* Quick Case Switcher */}
-      {!collapsed && cases && cases.length > 0 && (
-        <div className="px-3 pb-3">
+      {/* Header */}
+      <div
+        className={cn(
+          "px-3 pt-3 pb-2",
+          collapsed ? "flex justify-center" : "flex items-center gap-2"
+        )}
+      >
+        {!collapsed && cases && cases.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted" suppressHydrationWarning>
+              <button
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted"
+                suppressHydrationWarning
+              >
                 <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span className="flex-1 truncate text-xs font-medium text-foreground">
                   {selectedCase ? getCaseName(selectedCase) : "Select case..."}
@@ -186,15 +180,33 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
               ))}
               <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/cases?create=true" className="gap-2 text-xs text-muted-foreground" onClick={onNavigate}>
+                <Link
+                  href="/dashboard/cases?create=true"
+                  className="gap-2 text-xs text-muted-foreground"
+                  onClick={onNavigate}
+                >
                   <PlusCircle className="h-3 w-3" />
                   Create New Case
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      )}
+        )}
+
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            !collapsed && "ml-auto"
+          )}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronLeft className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
 
       <Separator className="bg-border" />
 
