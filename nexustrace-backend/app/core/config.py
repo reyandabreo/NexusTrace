@@ -14,7 +14,20 @@ class Settings(BaseSettings):
     
     OPENAI_API_KEY: str
     OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_IMAGE_MODEL: str = "gpt-image-1"
+    OPENAI_IMAGE_SIZE: str = "1536x1024"
+
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_IMAGE_MODEL: str = "gemini-2.5-flash-image"
+
+    ATTACK_CHAIN_IMAGE_PROVIDER: str = "cloudflare"  # auto | openai | gemini | cloudflare | pollinations
+    POLLINATIONS_IMAGE_MODEL: str = "Seedream"
     
+    CLOUDFLARE_ACCOUNT_ID: str = ""
+    CLOUDFLARE_API_TOKEN: str = ""
+    CLOUDFLARE_IMAGE_MODEL: str = "@cf/leonardo/phoenix-1.0"
+
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     SPACY_MODEL: str = "en_core_web_sm"
     

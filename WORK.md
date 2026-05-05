@@ -34,3 +34,46 @@
 **Build/Deploy**
 - Enable compression and caching headers for static assets.
 - Analyze bundle size and split large pages (graphs, analytics, mindmap).
+
+
+
+
+
+
+
+
+
+For your guide, the best “novel” features are the ones that look like research contributions, not just extra CRUD screens.
+
+**Best Novel Features (ranked)**
+1. Counterfactual Explainable Risk Scoring  
+Shows not only risk score, but why it was high and what would need to change for it to drop or rise.  
+Why this is novel: most tools only show scores, not actionable “why/why-not” explanations.
+
+2. Attack-Chain Reconstruction with MITRE ATT&CK Mapping  
+Automatically converts timeline + entities into an inferred kill chain (Initial Access → Execution → Persistence → Exfiltration), with confidence per step.  
+Why this is novel: turns raw forensic logs into interpretable attacker behavior graph.
+
+3. Verifiable Chain-of-Custody Integrity Layer  
+Hash every uploaded evidence/chunk, keep a tamper-evident chain, and provide one-click integrity verification report.  
+Why this is novel: combines AI investigation with legal-grade forensic integrity.
+
+4. Cross-Case Similar Incident Retrieval  
+Given a new case, find top similar historical cases using hybrid graph + embedding similarity, and suggest likely next leads.  
+Why this is novel: brings “case memory” and investigator acceleration.
+
+5. Adversarial RAG Guardrail (Answer + Verifier)  
+One model answers, another verifies whether the answer is fully grounded in retrieved evidence and flags unsupported claims.  
+Why this is novel: reduces hallucination risk in forensic contexts.
+
+**If you can build only one**
+Pick Attack-Chain Reconstruction with MITRE mapping.  
+Reason: highest demo impact, clearly “new”, and easy for faculty to understand in 30 seconds.
+
+**Quick capstone framing (for report/presentation)**
+- Problem: forensic tools are descriptive, not inferential.  
+- Contribution: evidence-grounded attack graph with explainable confidence.  
+- Evaluation: precision of mapped ATT&CK techniques, analyst time saved, false-positive reduction.
+
+If you want, I can give you a practical 2-week implementation plan for one selected feature (API endpoints, UI changes, and demo storyline).
+

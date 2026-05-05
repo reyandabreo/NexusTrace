@@ -54,4 +54,7 @@ export interface PrioritizedLead {
   reason: string;
   connections: number;
   last_seen: string;
+  risk_breakdown?: Record<string, number>;
+  top_risk_drivers?: string[];
+  counterfactual_explanations?: string[];
 }

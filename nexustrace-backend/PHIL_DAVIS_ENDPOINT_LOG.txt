@@ -1,0 +1,48 @@
+# SIMULATED ENDPOINT TELEMETRY LOG
+# Host: WS-NYC-PHIL07 | User: PHIL.DAVIS | Domain: CORP.GSINTERNAL.LOCAL
+# Role: Security Operations Analyst (Tier 2) | Timezone: EDT (UTC-4)
+# Format: TIMESTAMP | SEVERITY | SOURCE | EVENT_ID | USER | PROCESS | DESCRIPTION
+# NOTE: Synthetic data for training/incident response simulation only.
+
+2026-04-01 07:30:15.332 | INFO | SECURITY | 4624 | PHIL.DAVIS | winlogon.exe | Successful interactive logon. Workstation: WS-NYC-PHIL07
+2026-04-01 07:31:44.118 | INFO | SYSMON | 1 | PHIL.DAVIS | explorer.exe | Process created. Parent: userinit.exe
+2026-04-01 07:45:09.776 | INFO | APPLICATION | 1001 | PHIL.DAVIS | OUTLOOK.EXE | Mailbox sync completed. 312 items processed.
+2026-04-01 08:20:22.445 | INFO | SYSMON | 1 | PHIL.DAVIS | siem_console.exe | Process created. Parent: explorer.exe
+2026-04-01 09:15:33.221 | INFO | NETWORK | 3 | SYSTEM | siem_console.exe | TCP connection to 10.10.50.12:9300 (Internal SIEM API)
+2026-04-01 12:00:00.001 | INFO | SECURITY | 4802 | SYSTEM | scrnsave.scr | Screen saver activated. Workstation locked.
+2026-04-01 12:40:18.664 | INFO | SECURITY | 4803 | PHIL.DAVIS | logonui.exe | Workstation unlocked via smart card.
+2026-04-01 14:30:55.112 | INFO | FILE | 11 | PHIL.DAVIS | notepad.exe | File saved: C:\Users\PHIL.DAVIS\Desktop\Investigation_Notes_401226.txt
+2026-04-01 17:15:02.887 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-01 17:15:05.443 | INFO | POWER | 42 | SYSTEM | kernel | System entering sleep state (S3).
+
+2026-04-02 08:05:33.204 | INFO | SECURITY | 4624 | PHIL.DAVIS | winlogon.exe | Successful interactive logon. Host: WS-NYC-PHIL07
+2026-04-02 08:15:17.556 | INFO | SYSMON | 1 | PHIL.DAVIS | OUTLOOK.EXE | Process created. Parent: explorer.exe
+2026-04-02 11:30:44.892 | INFO | EMAIL_GW | 4501 | EXCH_MTA | - | Internal email: Subject='Q2 Diagnostic Tool Update'. Sender='it-tools@gsinternal.local'
+2026-04-02 11:35:22.331 | INFO | FILE | 11 | PHIL.DAVIS | OUTLOOK.EXE | Attachment saved: C:\Users\PHIL.DAVIS\Downloads\diag_tool_v2.4.zip
+2026-04-02 11:38:05.776 | INFO | SYSMON | 11 | PHIL.DAVIS | explorer.exe | File extracted: C:\Users\PHIL.DAVIS\Downloads\diag_tool_v2.4\updater.exe
+2026-04-02 11:40:11.445 | WARN | SYSMON | 1 | PHIL.DAVIS | updater.exe | Process created. Parent: explorer.exe. Command: updater.exe --silent --verify
+2026-04-02 11:40:15.889 | WARN | SYSMON | 7 | SYSTEM | updater.exe | DLL loaded: C:\Program Files\SecTools\lib\dsound.dll (DLL Sideloading)
+2026-04-02 11:40:22.337 | WARN | NETWORK | 3 | SYSTEM | dsound.dll | DNS tunneling detected: TXT queries to update-cdn.securetool[.]com
+2026-04-02 12:00:00-17:20:00 | INFO | VARIOUS | - | PHIL.DAVIS | - | Normal SOC work: alert triage, ticket closure. Background DNS beaconing observed.
+2026-04-02 17:25:10.991 | WARN | NETWORK | 3 | SYSTEM | dsound.dll | Periodic beacon via DNS (Jitter: 8m)
+2026-04-02 17:45:22.337 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-02 22:00:05.118 | WARN | NETWORK | 3 | SYSTEM | dsound.dll | Beacon persists during off-hours. Encoded payload retrieved via DNS.
+
+2026-04-03 08:00:11.204 | INFO | SECURITY | 4624 | PHIL.DAVIS | winlogon.exe | Successful interactive logon. Host: WS-NYC-PHIL07
+2026-04-03 08:15:00.000 | INFO | APPLICATION | 1001 | PHIL.DAVIS | OUTLOOK.EXE | Mailbox sync completed.
+2026-04-03 10:20:33.112 | INFO | SYSMON | 1 | PHIL.DAVIS | siem_console.exe | Process created. Parent: explorer.exe
+2026-04-03 13:45:10.889 | INFO | NETWORK | 3 | SYSTEM | siem_console.exe | TCP connection to 10.10.50.12:9300 (Log query executed)
+2026-04-03 17:15:02.887 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-03 20:15:44.221 | WARN | SECURITY | 4624 | PHIL.DAVIS | winlogon.exe | Interactive logon after hours. Session 3 created.
+2026-04-03 20:30:15.445 | INFO | SYSMON | 1 | PHIL.DAVIS | cmd.exe | Process created. Command: cmd.exe /c net user /domain > C:\Temp\ad_enum.txt
+2026-04-03 20:45:30.881 | WARN | SYSMON | 1 | SYSTEM | wmic.exe | Process created: wmic.exe /node:10.10.50.20 process call create "cmd.exe"
+2026-04-03 20:55:45.772 | WARN | NETWORK | 3 | SYSTEM | dsound.dll | Outbound connection to 198.51.100.44:53 (DNS tunneling re-established)
+2026-04-03 20:58:20.339 | WARN | FILE | 11 | SYSTEM | cmd.exe | File written: C:\Users\PHIL.DAVIS\AppData\Local\Temp\lsass_dump.tmp
+2026-04-03 21:00:00.000 | CRIT | MALWARE | 0x8F1 | SYSTEM | dsound.dll | PAYLOAD DETONATED: Living-off-the-land backdoor activated. AD enumeration & EDR bypass attempted.
+2026-04-03 21:00:05.221 | CRIT | SYSMON | 1 | SYSTEM | certutil.exe | Process created: certutil.exe -decode C:\Temp\payload.bin C:\Temp\stage.exe
+2026-04-03 21:00:12.884 | CRIT | SERVICE | 7040 | SYSTEM | sc.exe | Service state changed: SentinelAgent (Stopped) - Attempted by dsound.dll
+2026-04-03 21:00:18.445 | CRIT | EDR | 9005 | SYSTEM | dsound.dll | Behavioral alert: EDR service tampering + LotL execution chain detected
+2026-04-03 21:00:25.992 | WARN | NETWORK | 3 | SYSTEM | stage.exe | Outbound HTTPS POST to 198.51.100.44:443 (Exfil staging: 94 MB)
+2026-04-03 21:00:35.110 | CRIT | SYSMON | 10 | SYSTEM | stage.exe | Process access: Opened lsass.exe (PID 812) for read access
+2026-04-03 21:00:45.776 | CRIT | SYSTEM | 6008 | SYSTEM | kernel | Critical process termination. EDR containment policy enforced network isolation.
+2026-04-03 21:01:10.003 | ERROR | SECURITY | 4740 | SYSTEM | winlogon.exe | Account lockout event. User: PHIL.DAVIS. Source: WS-NYC-PHIL07. Credential rotation initiated.

@@ -1,0 +1,51 @@
+# SIMULATED ENDPOINT TELEMETRY LOG
+# Host: WS-LDN-NIVYA05 | User: NIVYA.PATEL | Domain: CORP.GSINTERNAL.LOCAL
+# Role: DevOps Engineer, Cloud Infrastructure | Timezone: BST (UTC+1)
+# Format: TIMESTAMP | SEVERITY | SOURCE | EVENT_ID | USER | PROCESS | DESCRIPTION
+# NOTE: Synthetic data for training/incident response simulation only.
+
+2026-04-01 07:55:22.118 | INFO | SECURITY | 4624 | NIVYA.PATEL | winlogon.exe | Successful interactive logon. Workstation: WS-LDN-NIVYA05
+2026-04-01 07:56:44.332 | INFO | SYSMON | 1 | NIVYA.PATEL | explorer.exe | Process created. Parent: userinit.exe
+2026-04-01 08:10:15.776 | INFO | APPLICATION | 1001 | NIVYA.PATEL | OUTLOOK.EXE | Mailbox sync completed. 156 items processed.
+2026-04-01 08:30:09.445 | INFO | SYSMON | 1 | NIVYA.PATEL | code.exe | Process created. Parent: explorer.exe (VS Code launched)
+2026-04-01 08:31:22.889 | INFO | NETWORK | 3 | SYSTEM | code.exe | TCP connection to 10.15.88.10:443 (Internal GitLab)
+2026-04-01 09:45:33.221 | INFO | SYSMON | 11 | NIVYA.PATEL | code.exe | File modified: C:\Users\NIVYA.PATEL\Projects\infra-terraform\main.tf
+2026-04-01 11:20:00.001 | INFO | SECURITY | 4802 | SYSTEM | scrnsave.scr | Screen saver activated. Workstation locked.
+2026-04-01 11:35:18.664 | INFO | SECURITY | 4803 | NIVYA.PATEL | logonui.exe | Workstation unlocked via smart card.
+2026-04-01 13:15:55.112 | INFO | SYSMON | 1 | NIVYA.PATEL | docker.exe | Process created. Parent: code.exe
+2026-04-01 14:40:22.443 | INFO | NETWORK | 3 | SYSTEM | docker.exe | Pull image: gs-internal-registry.local/ci-tools:latest
+2026-04-01 17:25:02.887 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-01 17:25:05.443 | INFO | POWER | 42 | SYSTEM | kernel | System entering sleep state (S3).
+
+2026-04-02 08:02:33.204 | INFO | SECURITY | 4624 | NIVYA.PATEL | winlogon.exe | Successful interactive logon. Host: WS-LDN-NIVYA05
+2026-04-02 08:15:17.556 | INFO | SYSMON | 1 | NIVYA.PATEL | OUTLOOK.EXE | Process created. Parent: explorer.exe
+2026-04-02 09:05:44.892 | INFO | EMAIL_GW | 4501 | EXCH_MTA | - | Internal email: Subject='CI Pipeline Update - Action Required'. Sender='devops-alerts@gsinternal.local'
+2026-04-02 09:08:22.331 | INFO | FILE | 11 | NIVYA.PATEL | OUTLOOK.EXE | Attachment saved: C:\Users\NIVYA.PATEL\Downloads\pipeline-update-v2.3.1.zip
+2026-04-02 09:10:05.776 | INFO | SYSMON | 11 | NIVYA.PATEL | explorer.exe | File extracted: C:\Users\NIVYA.PATEL\Downloads\pipeline-update-v2.3.1\setup.ps1
+2026-04-02 09:12:11.445 | WARN | SYSMON | 1 | NIVYA.PATEL | powershell.exe | Process created. Parent: explorer.exe. Command: powershell.exe -ExecutionPolicy Bypass -File setup.ps1
+2026-04-02 09:12:15.889 | WARN | NETWORK | 3 | SYSTEM | powershell.exe | Outbound DNS: pipeline-cdn.azure-deploy[.]net resolved to 203.0.113.88
+2026-04-02 09:12:22.337 | WARN | SYSMON | 3 | SYSTEM | powershell.exe | TCP connection to 203.0.113.88:443 (C2 handshake)
+2026-04-02 09:12:30.112 | WARN | REGISTRY | 13 | SYSTEM | powershell.exe | Persistence: Scheduled task created 'AzureSyncHelper' -> C:\Users\NIVYA.PATEL\AppData\Local\Microsoft\azure-sync.exe
+2026-04-02 10:00:00-17:30:00 | INFO | VARIOUS | - | NIVYA.PATEL | - | Normal DevOps activity: Terraform apply, Docker builds, internal portal access. Background C2 beaconing observed.
+2026-04-02 17:35:10.991 | WARN | NETWORK | 3 | SYSTEM | azure-sync.exe | Periodic beacon to 203.0.113.88:443 (Jitter: 12m)
+2026-04-02 18:00:22.337 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-02 22:45:05.118 | WARN | NETWORK | 3 | SYSTEM | azure-sync.exe | Beacon persists during off-hours. Encrypted payload exchange detected.
+
+2026-04-03 08:00:11.204 | INFO | SECURITY | 4624 | NIVYA.PATEL | winlogon.exe | Successful interactive logon. Host: WS-LDN-NIVYA05
+2026-04-03 08:20:00.000 | INFO | APPLICATION | 1001 | NIVYA.PATEL | OUTLOOK.EXE | Mailbox sync completed.
+2026-04-03 10:30:33.112 | INFO | SYSMON | 1 | NIVYA.PATEL | code.exe | Process created. Project: infra-terraform
+2026-04-03 13:15:10.889 | INFO | NETWORK | 3 | SYSTEM | code.exe | Git push to internal repo: gs-internal-gitlab.local/infra/prod
+2026-04-03 16:45:02.887 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-03 20:30:44.221 | WARN | SECURITY | 4624 | NIVYA.PATEL | winlogon.exe | Interactive logon after hours. Session 3 created.
+2026-04-03 20:45:15.445 | INFO | SYSMON | 1 | NIVYA.PATEL | powershell.exe | Process created. Command: powershell.exe -NoProfile -Command "Import-Module AzureAz; Connect-AzAccount"
+2026-04-03 20:50:30.881 | WARN | SYSMON | 10 | SYSTEM | powershell.exe | Process access: Attempted to read Azure CLI token cache
+2026-04-03 20:55:45.772 | WARN | NETWORK | 3 | SYSTEM | azure-sync.exe | Outbound connection to 203.0.113.88:443 (C2 channel re-established)
+2026-04-03 20:58:20.339 | WARN | FILE | 11 | SYSTEM | azure-sync.exe | File written: C:\Users\NIVYA.PATEL\.azure\cloud-config-backup.json (exfiltration staging)
+2026-04-03 21:00:00.000 | CRIT | MALWARE | 0x5C9 | SYSTEM | azure-sync.exe | PAYLOAD DETONATED: Cloud credential harvester + infrastructure sabotage module activated.
+2026-04-03 21:00:05.221 | CRIT | SYSMON | 1 | SYSTEM | azure-sync.exe | Process spawned: mimikatz-style module loaded in memory
+2026-04-03 21:00:12.884 | CRIT | NETWORK | 3 | SYSTEM | azure-sync.exe | Data exfiltration: POST /api/collect (Azure service principals, SSH keys, Terraform state files - 215 MB)
+2026-04-03 21:00:18.445 | CRIT | SYSMON | 13 | SYSTEM | azure-sync.exe | Registry modification: HKCU\Software\Microsoft\Terminal Server Client\Servers\ modified (RDP persistence)
+2026-04-03 21:00:25.992 | CRIT | EDR | 9003 | SYSTEM | azure-sync.exe | Behavioral alert: Cloud credential theft + attempted lateral movement via SSH key reuse
+2026-04-03 21:00:35.110 | WARN | NETWORK | 3 | SYSTEM | azure-sync.exe | Outbound SSH attempt to internal jump host: 10.15.88.200:22 (blocked by NAC)
+2026-04-03 21:00:45.776 | CRIT | SYSTEM | 1074 | SYSTEM | kernel | System shutdown initiated by EDR containment policy. Reason: Critical threat detected.
+2026-04-03 21:01:10.003 | ERROR | SECURITY | 4740 | SYSTEM | winlogon.exe | Account lockout event. User: NIVYA.PATEL. Source: WS-LDN-NIVYA05. Network isolation + cloud credential rotation triggered.

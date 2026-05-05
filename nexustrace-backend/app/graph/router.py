@@ -3,7 +3,15 @@ from neo4j import Session
 from app.db.neo4j import get_db_session
 from app.auth.router import get_current_user
 from app.graph.timeline import TimelineService
-from app.schemas.graph import GraphResponse, MindmapResponse, TimelineEvent, PrioritizedLead, RelationTypeCount
+from app.graph.attack_chain import AttackChainService
+from app.schemas.graph import (
+    AttackChainResponse,
+    GraphResponse,
+    MindmapResponse,
+    PrioritizedLead,
+    RelationTypeCount,
+    TimelineEvent,
+)
 from typing import List, Optional
 import logging
 
@@ -43,6 +51,28 @@ def get_prioritized(
     except Exception as e:
         logger.error(f"Error in get_prioritized: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/attack-chain/{case_id}", response_model=AttackChainResponse)
+def get_attack_chain(
+    case_id: str,
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db_session)
+):
+    """
+    Reconstruct probable attack progression and map evidence to MITRE ATT&CK techniques.
+    """
+    try:
+        service = AttackChainService(session, current_user["user_id"])
+        return service.reconstruct_attack_chain(case_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error in get_attack_chain: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 @router.get("/entities/{case_id}")
 def get_entities(

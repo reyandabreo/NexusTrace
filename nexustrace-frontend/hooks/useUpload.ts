@@ -16,6 +16,18 @@ export function useUploadEvidence() {
   const { logAction } = useAuditLogger();
   const addNotification = useNotificationStore((s) => s.addNotification);
 
+  const invalidateCaseQueries = (caseId: string) => {
+    queryClient.invalidateQueries({ queryKey: ["case", caseId] });
+    queryClient.invalidateQueries({ queryKey: ["cases"] });
+    queryClient.invalidateQueries({ queryKey: ["evidenceList", caseId] });
+    queryClient.invalidateQueries({ queryKey: ["network", caseId] });
+    queryClient.invalidateQueries({ queryKey: ["timeline", caseId] });
+    queryClient.invalidateQueries({ queryKey: ["entities", caseId] });
+    queryClient.invalidateQueries({ queryKey: ["prioritized", caseId] });
+    queryClient.invalidateQueries({ queryKey: ["network-relations", caseId] });
+    queryClient.invalidateQueries({ queryKey: ["mindmap", caseId] });
+  };
+
   return useMutation({
     mutationFn: async ({
       caseId,
@@ -33,10 +45,8 @@ export function useUploadEvidence() {
       });
       return res.data;
     },
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["case", variables.caseId] });
-      queryClient.invalidateQueries({ queryKey: ["evidenceList", variables.caseId] });
-      queryClient.invalidateQueries({ queryKey: ["network", variables.caseId] });
+    onSuccess: (_data, variables) => {
+      invalidateCaseQueries(variables.caseId);
       
       // Track activity
       addActivity({
@@ -76,21 +86,24 @@ export function useUploadEvidence() {
         description: "File has been uploaded and is being processed",
       });
     },
-    onError: (error: any, variables) => {
-      const data = error.response?.data;
+    onError: (error: unknown, variables) => {
+      type ErrorPayload = { msg?: string; detail?: string };
+      const data = (error as { response?: { data?: unknown } })?.response?.data;
       let description = "Could not upload file";
       
       // Handle Zod validation error (array)
       if (Array.isArray(data)) {
-        description = data[0]?.msg || "Validation failed";
+        const firstError = data[0] as ErrorPayload | undefined;
+        description = firstError?.msg || "Validation failed";
       }
       // Handle single validation error object
-      else if (data && typeof data === "object" && data.msg) {
-        description = data.msg;
-      }
-      // Handle API detail field (string)
-      else if (typeof data?.detail === "string") {
-        description = data.detail;
+      else if (data && typeof data === "object") {
+        const payload = data as ErrorPayload;
+        if (payload.msg) {
+          description = payload.msg;
+        } else if (typeof payload.detail === "string") {
+          description = payload.detail;
+        }
       }
       
       // Log failed upload
@@ -111,6 +124,11 @@ export function useUploadEvidence() {
       
       toast.error("Upload failed", { description });
     },
+    onSettled: (_data, _error, variables) => {
+      if (variables?.caseId) {
+        invalidateCaseQueries(variables.caseId);
+      }
+    },
   });
 }
 
@@ -130,38 +148,27 @@ export function useEvidenceList(caseId: string) {
   return useQuery<Evidence[]>({
     queryKey: ["evidenceList", caseId],
     queryFn: async () => {
-      console.log("[useEvidenceList] Fetching evidence for case:", caseId);
-      
-      // Get evidence IDs from network graph
-      const networkRes = await api.get(`/graph/network/${caseId}`);
-      console.log("[useEvidenceList] Network response:", networkRes.data);
-      
-      const evidenceNodes = networkRes.data.nodes.filter(
-        (node: any) => node.type === "Evidence"
-      );
-      console.log("[useEvidenceList] Found evidence nodes:", evidenceNodes);
-      
-      if (evidenceNodes.length === 0) {
-        console.warn("[useEvidenceList] No evidence nodes found in network graph");
-        return [];
-      }
-      
-      // Fetch details for each evidence
-      const evidenceDetails = await Promise.all(
-        evidenceNodes.map(async (node: any) => {
-          // Extract evidence_id from node properties or parse from node.id
-          const evidenceId = node.properties?.evidence_id || node.id.split(':')[1] || node.id;
-          console.log("[useEvidenceList] Fetching details for evidence:", evidenceId, "from node:", node);
-          const res = await api.get(`/evidence/${evidenceId}`);
-          console.log("[useEvidenceList] Evidence details:", res.data);
-          return res.data;
-        })
-      );
-      
-      console.log("[useEvidenceList] All evidence details:", evidenceDetails);
-      return evidenceDetails;
+      const res = await api.get(`/evidence/case/${caseId}`);
+      type CaseEvidenceRow = {
+        id?: string;
+        evidence_id?: string;
+        filename?: string;
+        file_type?: string;
+        created_at?: string | null;
+        uploaded_at?: string | null;
+      };
+      const rows: CaseEvidenceRow[] = Array.isArray(res.data) ? res.data : [];
+
+      return rows
+        .map((item) => ({
+          evidence_id: item.evidence_id || item.id,
+          filename: item.filename || "Unknown",
+          file_type: item.file_type || "txt",
+          created_at: item.created_at || item.uploaded_at || null,
+        }))
+        .filter((item: any) => Boolean(item.evidence_id)) as Evidence[];
     },
     enabled: !!caseId,
-    staleTime: 1 * 60 * 1000, // 1 minute - evidence list can change as new files are uploaded
+    staleTime: 30 * 1000,
   });
 }

@@ -1,0 +1,49 @@
+# SIMULATED ENDPOINT TELEMETRY LOG
+# Host: WS-BTH-BOB01 | User: BOB.THOMPSON | Domain: CORP.GSINTERNAL.LOCAL
+# Timezone: EDT (UTC-4) | Format: TIMESTAMP | SEVERITY | SOURCE | EVENT_ID | USER | PROCESS | DESCRIPTION
+# NOTE: Synthetic data for training/incident response simulation only.
+
+2026-04-01 07:42:11.204 | INFO | SECURITY | 4624 | BOB.THOMPSON | winlogon.exe | Successful interactive logon. Workstation: WS-BTH-BOB01
+2026-04-01 07:43:05.112 | INFO | SYSMON | 1 | SYSTEM | explorer.exe | Process created. Parent: userinit.exe
+2026-04-01 08:15:22.890 | INFO | APPLICATION | 1001 | BOB.THOMPSON | OUTLOOK.EXE | Mailbox sync completed. 412 items processed.
+2026-04-01 08:45:10.445 | INFO | NETWORK | 3 | SYSTEM | outlook.exe | TCP connection established to 10.12.44.5:443 (Exchange CAS)
+2026-04-01 09:10:33.671 | INFO | SYSMON | 1 | BOB.THOMPSON | bbterminal.exe | Process created. Parent: explorer.exe
+2026-04-01 12:05:00.001 | INFO | SECURITY | 4802 | SYSTEM | scrnsave.scr | Screen saver activated. Workstation locked.
+2026-04-01 12:30:15.332 | INFO | SECURITY | 4803 | BOB.THOMPSON | logonui.exe | Workstation unlocked via password.
+2026-04-01 13:15:44.109 | INFO | SYSMON | 7 | SYSTEM | EXCEL.EXE | Image loaded: mso40uiwin32client.dll
+2026-04-01 15:20:11.887 | INFO | FILE | 11 | BOB.THOMPSON | EXCEL.EXE | File created: C:\Users\BOB.THOMPSON\Desktop\Q1_Summary_Draft.xlsx
+2026-04-01 17:45:02.004 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-01 17:45:05.221 | INFO | POWER | 42 | SYSTEM | kernel | System entering sleep state (S3).
+
+2026-04-02 07:51:03.118 | INFO | SECURITY | 4624 | BOB.THOMPSON | winlogon.exe | Successful interactive logon. Host: WS-BTH-BOB01
+2026-04-02 08:22:17.445 | INFO | SYSMON | 1 | BOB.THOMPSON | OUTLOOK.EXE | Process created. Parent: explorer.exe
+2026-04-02 08:35:44.892 | WARN | EMAIL_GW | 4502 | EXCH_MTA | - | External email flagged: Subject='Q1 Compliance & Tax Update.zip'. Sender='compliance-notices@goldmansach-support.com'. SPF: FAIL
+2026-04-02 08:38:12.331 | INFO | FILE | 11 | BOB.THOMPSON | OUTLOOK.EXE | File created: C:\Users\BOB.THOMPSON\Downloads\Compliance_Update.zip
+2026-04-02 08:41:05.776 | INFO | SYSMON | 1 | BOB.THOMPSON | explorer.exe | Process created: C:\Users\BOB.THOMPSON\Downloads\Compliance_Update.exe (Extracted payload)
+2026-04-02 08:41:09.002 | INFO | NETWORK | 3 | SYSTEM | Compliance_Update.exe | TCP connection to 185.193.67.112:443 (C2 Beacon)
+2026-04-02 08:41:15.884 | WARN | REGISTRY | 13 | SYSTEM | reg.exe | Registry value set: HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TaxSvcHost -> C:\Users\BOB.THOMPSON\AppData\Local\Temp\svchost32.exe
+2026-04-02 09:30:22.110 | INFO | SYSMON | 1 | BOB.THOMPSON | TEAMS.EXE | Process created. Normal operation resumed.
+2026-04-02 14:15:08.443 | INFO | APPLICATION | 1002 | BOB.THOMPSON | EXCEL.EXE | Workbook opened: C:\Users\BOB.THOMPSON\Desktop\Q1_Summary_Draft.xlsx
+2026-04-02 17:55:10.991 | WARN | NETWORK | 3 | SYSTEM | svchost32.exe | Periodic beacon to 185.193.67.112:443 (Jitter: 15m)
+2026-04-02 18:10:22.337 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-02 22:30:05.118 | WARN | NETWORK | 3 | SYSTEM | svchost32.exe | Beacon persists across sleep cycle. TCP keepalive sent.
+
+2026-04-03 07:40:11.204 | INFO | SECURITY | 4624 | BOB.THOMPSON | winlogon.exe | Successful interactive logon. Host: WS-BTH-BOB01
+2026-04-03 08:00:00.000 | INFO | APPLICATION | 1001 | BOB.THOMPSON | OUTLOOK.EXE | Mailbox sync completed.
+2026-04-03 12:45:33.112 | INFO | FILE | 11 | BOB.THOMPSON | WINWORD.EXE | File saved: C:\Users\BOB.THOMPSON\Documents\Audit_Reqs_v2.docx
+2026-04-03 17:45:10.889 | INFO | SECURITY | 4634 | SYSTEM | winlogon.exe | User logoff. Session 2 ended.
+2026-04-03 19:15:44.221 | WARN | SECURITY | 4624 | BOB.THOMPSON | winlogon.exe | Interactive logon after hours. Session 3 created.
+2026-04-03 19:16:02.445 | INFO | FILE | 11 | BOB.THOMPSON | TEAMS.EXE | File received: C:\Users\BOB.THOMPSON\Desktop\Audit_Final_Review.pdf.exe
+2026-04-03 20:50:10.881 | INFO | SYSMON | 1 | BOB.THOMPSON | explorer.exe | User executed: C:\Users\BOB.THOMPSON\Desktop\Audit_Final_Review.pdf.exe
+2026-04-03 20:50:11.003 | WARN | UAC | 1100 | BOB.THOMPSON | consent.exe | Privilege elevation requested by rundll32.exe. User granted consent.
+2026-04-03 20:50:14.772 | INFO | SYSMON | 1 | SYSTEM | rundll32.exe | Process created. Parent: explorer.exe. Command: rundll32.exe C:\Windows\System32\svchost.dll,DllRegisterServer
+2026-04-03 20:55:22.339 | WARN | NETWORK | 3 | SYSTEM | svchost.dll | TCP connection to 45.77.123.88:8443 (Secondary C2)
+2026-04-03 20:58:01.114 | WARN | NETWORK | 3 | SYSTEM | svchost.dll | High volume outbound traffic detected. POST /api/exfil (142 MB)
+2026-04-03 21:00:00.000 | CRIT | MALWARE | 0x9A1 | SYSTEM | svchost.dll | PAYLOAD DETONATED: Ransomware/InfoStealer hybrid execution initiated.
+2026-04-03 21:00:03.221 | CRIT | SYSMON | 1 | SYSTEM | powershell.exe | Encoded command executed: -enc aW1wb3J0LW1vZHVsZSBNZW1vcnlDb3B5LmdldCB8...
+2026-04-03 21:00:07.884 | WARN | SECURITY | 1102 | SYSTEM | wevtutil.exe | Audit log cleared. Command: wevtutil.exe cl Security
+2026-04-03 21:00:12.445 | CRIT | FILE | 23 | SYSTEM | svchost.dll | Mass file encryption detected. Extension changed to .GSLOCK across C:\Users\BOB.THOMPSON\
+2026-04-03 21:00:18.992 | CRIT | EDR | 9001 | SYSTEM | svchost.dll | Process injection detected. Target: lsass.exe (PID 612)
+2026-04-03 21:00:31.110 | WARN | NETWORK | 3 | SYSTEM | svchost.dll | Outbound exfiltration spike. Destination: 45.77.123.88:443
+2026-04-03 21:00:45.776 | CRIT | SYSTEM | 1074 | SYSTEM | kernel | Unexpected system shutdown initiated. Reason: 0x8000FFFF (Critical process termination)
+2026-04-03 21:01:10.003 | ERROR | SECURITY | 4625 | SYSTEM | winlogon.exe | Logon failure. Account locked out / Network isolation active. Host offline.

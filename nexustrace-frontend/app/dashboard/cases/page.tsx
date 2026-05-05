@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -93,6 +93,19 @@ const sortLabels: Record<SortOption, string> = {
 const priorityOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
 
 export default function AllCasesPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-8">
+        <Skeleton className="h-8 w-48 mb-8" />
+        <Skeleton className="h-[400px] w-full" />
+      </div>
+    }>
+      <CasesPageContent />
+    </Suspense>
+  );
+}
+
+function CasesPageContent() {
   const { data: cases, isLoading } = useCases();
   const createCase = useCreateCase();
   const deleteCase = useDeleteCase();

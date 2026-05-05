@@ -50,3 +50,17 @@ def get_all_query_history(
 ):
     service = RAGService(session)
     return service.get_all_query_history(current_user["user_id"])
+
+
+@router.delete("/history/{case_id}/{query_id}")
+def delete_query_history_item(
+    case_id: str,
+    query_id: str,
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db_session)
+):
+    # Verify case ownership first
+    CaseService(session, current_user["user_id"]).get_case(case_id)
+
+    service = RAGService(session)
+    return service.delete_query(current_user["user_id"], case_id, query_id)

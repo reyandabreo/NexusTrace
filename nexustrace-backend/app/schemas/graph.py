@@ -49,3 +49,53 @@ class PrioritizedLead(BaseModel):
     reason: str
     connections: int
     last_seen: str
+    risk_breakdown: Optional[Dict[str, float]] = None
+    top_risk_drivers: Optional[List[str]] = None
+    counterfactual_explanations: Optional[List[str]] = None
+
+
+class AttackChainTechnique(BaseModel):
+    technique_id: str
+    technique_name: str
+    tactic: str
+    stage: str
+    confidence: float
+    evidence_event_ids: List[str]
+    rationale: str
+
+
+class AttackChainStage(BaseModel):
+    stage: str
+    confidence: float
+    summary: str
+    event_count: int
+    techniques: List[AttackChainTechnique]
+
+
+class AttackChainGap(BaseModel):
+    stage: str
+    reason: str
+    recommended_artifacts: List[str]
+
+
+class AttackChainFlowStep(BaseModel):
+    title: str
+    time_window: str
+    summary: str
+    related_stages: List[str]
+    supporting_event_ids: List[str]
+
+
+class AttackChainResponse(BaseModel):
+    case_id: str
+    overall_confidence: float
+    chain_status: str
+    timeline_event_count: int
+    identified_stages: List[AttackChainStage]
+    uncovered_stages: List[AttackChainGap]
+    logical_flow: List[AttackChainFlowStep]
+    narrative_overview: str
+    generated_at: str
+
+
+

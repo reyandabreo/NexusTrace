@@ -2,39 +2,73 @@ from neo4j import Session
 from typing import List, Dict, Any
 
 class GraphBuilder:
+    MAX_CO_OCCUR_ENTITIES_PER_CHUNK = 60
+
     def __init__(self, session: Session):
         self.session = session
     
     def _create_entity_relationships(self, entities: List[Dict[str, str]], chunk_id: str):
         """Create relationships between entities that co-occur in the same chunk"""
-        relationships_created = 0
-        for i in range(len(entities)):
-            for j in range(i + 1, len(entities)):
-                entity1 = entities[i]
-                entity2 = entities[j]
-                
-                try:
-                    query = """
-                    MATCH (e1:Entity {name: $name1})
-                    MATCH (e2:Entity {name: $name2})
-                    MERGE (e1)-[r:CO_OCCURS]->(e2)
-                    ON CREATE SET r.count = 1, r.chunk_ids = [$chunk_id]
-                    ON MATCH SET r.count = r.count + 1, r.chunk_ids = r.chunk_ids + $chunk_id
-                    RETURN type(r) as rel_type
-                    """
-                    result = self.session.run(query, 
-                                   name1=entity1["name"],
-                                   name2=entity2["name"],
-                                   chunk_id=chunk_id)
-                    record = result.single()
-                    if record:
-                        relationships_created += 1
-                except Exception as e:
-                    print(f"  ✗ Error creating relationship between '{entity1['name']}' and '{entity2['name']}': {e}")
+        if not entities:
+            return
+
+        # Deduplicate by name while preserving first-seen order.
+        unique_names: List[str] = []
+        seen_names = set()
+        for entity in entities:
+            name = (entity.get("name") or "").strip()
+            if not name:
+                continue
+            if name in seen_names:
+                continue
+            seen_names.add(name)
+            unique_names.append(name)
+
+        if len(unique_names) > self.MAX_CO_OCCUR_ENTITIES_PER_CHUNK:
+            print(
+                f"  [WARN] Limiting co-occurrence entities from {len(unique_names)} "
+                f"to {self.MAX_CO_OCCUR_ENTITIES_PER_CHUNK} for chunk {chunk_id}"
+            )
+            unique_names = unique_names[: self.MAX_CO_OCCUR_ENTITIES_PER_CHUNK]
+
+        if len(unique_names) < 2:
+            return
+
+        pair_set = set()
+        pairs = []
+        for i in range(len(unique_names)):
+            for j in range(i + 1, len(unique_names)):
+                name1, name2 = sorted((unique_names[i], unique_names[j]))
+                key = (name1, name2)
+                if key in pair_set:
                     continue
-        
-        if relationships_created > 0:
-            print(f"Created {relationships_created} entity relationships")
+                pair_set.add(key)
+                pairs.append({"name1": name1, "name2": name2})
+
+        if not pairs:
+            return
+
+        try:
+            query = """
+            UNWIND $pairs as pair
+            MATCH (e1:Entity {name: pair.name1})
+            MATCH (e2:Entity {name: pair.name2})
+            MERGE (e1)-[r:CO_OCCURS]->(e2)
+            ON CREATE SET r.count = 1, r.chunk_ids = [$chunk_id]
+            ON MATCH SET
+                r.count = coalesce(r.count, 0) + 1,
+                r.chunk_ids = CASE
+                    WHEN $chunk_id IN coalesce(r.chunk_ids, []) THEN coalesce(r.chunk_ids, [])
+                    ELSE coalesce(r.chunk_ids, []) + $chunk_id
+                END
+            RETURN count(r) as rel_count
+            """
+            result = self.session.run(query, pairs=pairs, chunk_id=chunk_id).single()
+            rel_count = result["rel_count"] if result else 0
+            if rel_count:
+                print(f"Created/updated {rel_count} entity relationships")
+        except Exception as e:
+            print(f"  ✗ Error creating co-occurrence relationships for chunk {chunk_id}: {e}")
 
     def create_evidence_node(self, user_id: str, case_id: str, evidence_id: str, filename: str, file_type: str):
         query = """

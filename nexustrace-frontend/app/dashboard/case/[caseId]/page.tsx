@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useCase, useNetworkGraph, useEntities, usePrioritized, useUpdateCase } from "@/hooks/useCases";
 import { useEvidenceList } from "@/hooks/useUpload";
-import { useQueryHistory } from "@/hooks/useRag";
+import { useDeleteQueryHistory, useQueryHistory } from "@/hooks/useRag";
 import { useCaseStore } from "@/store/caseStore";
 import { useActivityStore } from "@/store/activityStore";
 import { useAuthStore } from "@/store/authStore";
@@ -44,6 +44,7 @@ import {
   MessageSquare,
   ChevronRight,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 
 const statusColor: Record<string, string> = {
@@ -61,6 +62,7 @@ export default function CaseOverviewPage() {
   const { data: entities } = useEntities(caseId);
   const { data: prioritized } = usePrioritized(caseId);
   const { data: queryHistory } = useQueryHistory(caseId);
+  const deleteQueryHistory = useDeleteQueryHistory();
   const updateCase = useUpdateCase();
   const addActivity = useActivityStore((s) => s.addActivity);
   const user = useAuthStore((s) => s.user);
@@ -74,7 +76,7 @@ export default function CaseOverviewPage() {
       trackedCaseRef.current = caseId;
       addActivity({
         type: "view",
-        action: `Viewed case: ${getCaseName(caseData)}`,
+        action: `Viewed case: ${caseData ? getCaseName(caseData) : "Case"}`,
         target: caseId,
         userId: user.id,
       });
@@ -95,12 +97,12 @@ export default function CaseOverviewPage() {
       });
       
       toast.success("Case closed", {
-        description: `${getCaseName(caseData)} has been marked as closed`,
+        description: `${caseData ? getCaseName(caseData) : "Case"} has been marked as closed`,
       });
       
       addActivity({
         type: "update",
-        action: `Closed case: ${getCaseName(caseData)}`,
+        action: `Closed case: ${caseData ? getCaseName(caseData) : "Case"}`,
         target: caseId,
         userId: user.id,
       });
@@ -125,12 +127,12 @@ export default function CaseOverviewPage() {
       });
 
       toast.success("Case reopened", {
-        description: `${getCaseName(caseData)} has been reopened`,
+        description: `${caseData ? getCaseName(caseData) : "Case"} has been reopened`,
       });
 
       addActivity({
         type: "update",
-        action: `Reopened case: ${getCaseName(caseData)}`,
+        action: `Reopened case: ${caseData ? getCaseName(caseData) : "Case"}`,
         target: caseId,
         userId: user.id,
       });
@@ -142,6 +144,14 @@ export default function CaseOverviewPage() {
     } finally {
       setIsReopening(false);
     }
+  };
+
+  const handleDeleteQuery = (queryId: string) => {
+    if (!queryId) return;
+    const shouldDelete = window.confirm("Delete this query from history?");
+    if (!shouldDelete) return;
+
+    deleteQueryHistory.mutate({ caseId, queryId });
   };
 
   if (isLoading) {
@@ -355,9 +365,23 @@ export default function CaseOverviewPage() {
                         <p className="font-medium text-foreground text-sm">
                           {query.question}
                         </p>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap" suppressHydrationWarning>
-                          {new Date(query.timestamp).toLocaleString()}
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap" suppressHydrationWarning>
+                            {new Date(query.timestamp).toLocaleString()}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            disabled={deleteQueryHistory.isPending}
+                            onClick={() => handleDeleteQuery(query.query_id)}
+                            aria-label="Delete query"
+                            title="Delete query"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                       {query.answer && (
                         <p className="text-sm text-muted-foreground mb-2 line-clamp-2">

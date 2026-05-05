@@ -6,17 +6,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useFeedback, useRagExplanation } from "@/hooks/useRag";
+import { useFeedback } from "@/hooks/useRag";
 import ExplanationDrawer from "@/components/rag/ExplanationDrawer";
 import { toast } from "sonner";
 import type { ChatMessage as ChatMessageType } from "@/types/rag";
 
 export default function ChatMessage({
   message,
-  caseId,
 }: {
   message: ChatMessageType;
-  caseId: string;
 }) {
   const feedback = useFeedback();
   const [feedbackGiven, setFeedbackGiven] = useState<boolean | null>(null);
@@ -110,6 +108,14 @@ export default function ChatMessage({
                     : "text-destructive"
               }`}>
                 Confidence: {Math.round(message.confidence * 100)}%
+              </span>
+            </div>
+          )}
+
+          {isAssistant && message.provider_used && (
+            <div className="mt-1">
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Provider: {message.provider_used}
               </span>
             </div>
           )}

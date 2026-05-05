@@ -6,7 +6,11 @@ import api from "@/lib/api";
 import { useActivityStore } from "@/store/activityStore";
 import { useAuthStore } from "@/store/authStore";
 import type { Case, CreateCaseRequest } from "@/types/case";
-import type { RelationTypeCount } from "@/types/graph";
+import type { Entity } from "@/types/case";
+import type {
+  AttackChainResponse,
+  RelationTypeCount,
+} from "@/types/graph";
 
 export function useCases() {
   return useQuery<Case[]>({
@@ -56,21 +60,33 @@ export function useCreateCase() {
         description: "Your new investigation case has been created",
       });
     },
-    onError: (error: any) => {
-      const data = error.response?.data;
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: unknown } };
+      const data = err.response?.data;
       let description = "Failed to create case";
       
       // Handle Zod validation error (array)
       if (Array.isArray(data)) {
-        description = data[0]?.msg || "Validation failed";
+        const first = data[0];
+        const msg =
+          first && typeof first === "object" && "msg" in first
+            ? (first as { msg?: unknown }).msg
+            : undefined;
+        description = typeof msg === "string" ? msg : "Validation failed";
       }
       // Handle single validation error object
-      else if (data && typeof data === "object" && data.msg) {
-        description = data.msg;
+      else if (data && typeof data === "object" && "msg" in data) {
+        const msg = (data as { msg?: unknown }).msg;
+        if (typeof msg === "string") {
+          description = msg;
+        }
       }
       // Handle API detail field (string)
-      else if (typeof data?.detail === "string") {
-        description = data.detail;
+      else if (data && typeof data === "object" && "detail" in data) {
+        const detail = (data as { detail?: unknown }).detail;
+        if (typeof detail === "string") {
+          description = detail;
+        }
       }
       
       toast.error("Failed to create case", { description });
@@ -104,19 +120,31 @@ export function useUpdateCase() {
         description: "Case has been updated successfully",
       });
     },
-    onError: (error: any) => {
-      const data = error.response?.data;
+    onError: (error: unknown) => {
+      const err = error as { message?: string; response?: { data?: unknown } };
+      const data = err.response?.data;
       let description = "Failed to update case";
       
       // Check if it's a network error (backend not running)
-      if (error.message === "Network Error" || !error.response) {
+      if (err.message === "Network Error" || !err.response) {
         description = "Cannot connect to server. Please ensure the backend server is running on http://localhost:8000";
       } else if (Array.isArray(data)) {
-        description = data[0]?.msg || "Validation failed";
-      } else if (data && typeof data === "object" && data.msg) {
-        description = data.msg;
-      } else if (typeof data?.detail === "string") {
-        description = data.detail;
+        const first = data[0];
+        const msg =
+          first && typeof first === "object" && "msg" in first
+            ? (first as { msg?: unknown }).msg
+            : undefined;
+        description = typeof msg === "string" ? msg : "Validation failed";
+      } else if (data && typeof data === "object" && "msg" in data) {
+        const msg = (data as { msg?: unknown }).msg;
+        if (typeof msg === "string") {
+          description = msg;
+        }
+      } else if (data && typeof data === "object" && "detail" in data) {
+        const detail = (data as { detail?: unknown }).detail;
+        if (typeof detail === "string") {
+          description = detail;
+        }
       }
       
       toast.error("Failed to update case", { description });
@@ -138,7 +166,7 @@ export function useDeleteCase() {
       queryClient.invalidateQueries({ queryKey: ["cases"] });
       
       addActivity({
-        type: "delete" as any,
+        type: "delete",
         action: `Deleted case`,
         userId: user?.id || 'unknown',
         target: caseId,
@@ -148,11 +176,15 @@ export function useDeleteCase() {
         description: "The case has been permanently removed",
       });
     },
-    onError: (error: any) => {
-      const data = error.response?.data;
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: unknown } };
+      const data = err.response?.data;
       let description = "Failed to delete case";
-      if (typeof data?.detail === "string") {
-        description = data.detail;
+      if (data && typeof data === "object" && "detail" in data) {
+        const detail = (data as { detail?: unknown }).detail;
+        if (typeof detail === "string") {
+          description = detail;
+        }
       }
       toast.error("Failed to delete case", { description });
     },
@@ -174,19 +206,43 @@ export function useEntities(caseId: string) {
   return useQuery({
     queryKey: ["entities", caseId],
     queryFn: async () => {
-      // Get entities from network graph since /graph/entities endpoint has issues
-      const networkRes = await api.get(`/graph/network/${caseId}`);
-      const entityNodes = networkRes.data.nodes.filter(
-        (node: any) => node.type === "Entity"
-      );
-      
-      // Transform to Entity format
-      return entityNodes.map((node: any) => ({
-        id: node.id,
-        name: node.label,
-        type: node.properties?.type?.toLowerCase() || "other",
-        mentions: 1, // Default value
-        properties: node.properties
+      const res = await api.get(`/graph/entities/${caseId}`);
+      type GraphEntityRow = {
+        id?: string;
+        name?: string;
+        type?: string;
+        mentions?: number;
+        risk_score?: number;
+        properties?: Record<string, unknown>;
+      };
+      const rows: GraphEntityRow[] = Array.isArray(res.data) ? res.data : [];
+
+      const mapType = (rawType?: string): Entity["type"] => {
+        const normalized = (rawType || "").toUpperCase();
+        if (normalized === "PERSON") return "person";
+        if (normalized === "ORG") return "organization";
+        if (normalized === "GPE") return "location";
+        if (normalized === "EMAIL") return "email";
+        if (normalized === "IP_ADDRESS") return "ip";
+        if (normalized === "PHONE") return "phone";
+        if (normalized === "PRODUCT") return "device";
+        return "other";
+      };
+
+      const normalizeProperties = (props?: Record<string, unknown>): Record<string, string> => {
+        if (!props) return {};
+        return Object.fromEntries(
+          Object.entries(props).map(([key, value]) => [key, String(value)])
+        );
+      };
+
+      return rows.map((item) => ({
+        id: item.id || `${item.name || "unknown"}-${item.type || "other"}`,
+        name: item.name || "Unknown",
+        type: mapType(item.type),
+        mentions: Number(item.mentions || 0),
+        risk_score: typeof item.risk_score === "number" ? item.risk_score : undefined,
+        properties: normalizeProperties(item.properties),
       }));
     },
     enabled: !!caseId,
@@ -203,6 +259,19 @@ export function usePrioritized(caseId: string) {
     enabled: !!caseId,
   });
 }
+
+export function useAttackChain(caseId: string) {
+  return useQuery<AttackChainResponse>({
+    queryKey: ["attack-chain", caseId],
+    queryFn: async () => {
+      const res = await api.get(`/graph/attack-chain/${caseId}`);
+      return res.data;
+    },
+    enabled: !!caseId,
+  });
+}
+
+
 
 export function useNetworkGraph(
   caseId: string,

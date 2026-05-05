@@ -1,4 +1,5 @@
 from neo4j import GraphDatabase
+from fastapi import HTTPException
 from app.core.config import settings
 
 class Neo4jHandler:
@@ -6,10 +7,22 @@ class Neo4jHandler:
         self.driver = None
 
     def connect(self):
-        self.driver = GraphDatabase.driver(
+        if self.driver is not None:
+            return
+
+        driver = GraphDatabase.driver(
             settings.NEO4J_URI,
             auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
         )
+
+        try:
+            # Fail fast on startup/dependency resolution if DB/DNS is unavailable.
+            driver.verify_connectivity()
+        except Exception:
+            driver.close()
+            raise
+
+        self.driver = driver
 
     def close(self):
         if self.driver:
@@ -23,7 +36,14 @@ class Neo4jHandler:
 neo4j_handler = Neo4jHandler()
 
 def get_db_session():
-    session = neo4j_handler.get_session()
+    try:
+        session = neo4j_handler.get_session()
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail="Database is unavailable. Please try again shortly."
+        ) from e
+
     try:
         yield session
     finally:

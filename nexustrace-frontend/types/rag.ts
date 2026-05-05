@@ -1,7 +1,10 @@
+export type RagProvider = "auto" | "openai" | "gemini";
+
 export interface RagQuery {
   question: string;
   case_id: string;
   chat_history?: ChatHistoryMessage[];
+  provider?: RagProvider;
 }
 
 export interface ChatHistoryMessage {
@@ -30,6 +33,8 @@ export interface RagResponse {
   reasoning_summary: string;
   confidence_score: number;
   sources: SourceAttribution[];
+  provider_requested?: RagProvider;
+  provider_used?: string;
 }
 
 export interface RagExplanation {
@@ -47,6 +52,7 @@ export interface ChatMessage {
   cited_chunks?: string[];
   sources?: SourceAttribution[];
   confidence?: number;
+  provider_used?: string;
   timestamp: Date;
 }
 

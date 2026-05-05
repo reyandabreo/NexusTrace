@@ -1,15 +1,27 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { MessageSquare, Send, Bot, User, Loader2 } from "lucide-react";
+import { Send, Bot, Loader2 } from "lucide-react";
 import { useRagAsk, useQueryHistory } from "@/hooks/useRag";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import ChatMessage from "@/components/rag/ChatMessage";
-import type { ChatMessage as ChatMessageType, ChatHistoryMessage } from "@/types/rag";
+import type {
+  ChatMessage as ChatMessageType,
+  ChatHistoryMessage,
+  QueryHistory,
+  RagProvider,
+} from "@/types/rag";
 
 export default function RagPage() {
   const params = useParams();
@@ -28,41 +40,45 @@ export default function RagPage() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [provider, setProvider] = useState<RagProvider>("gemini");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load specific query from URL params
-  useEffect(() => {
-    if (queryId && queryHistory) {
-      const query = queryHistory.find((q: any) => q.query_id === queryId);
-      if (query) {
-        const userMsg: ChatMessageType = {
-          id: `user-${query.query_id}`,
-          role: "user",
-          content: query.question,
-          timestamp: new Date(query.timestamp),
-        };
-        
-        const assistantMsg: ChatMessageType = {
-          id: `assistant-${query.query_id}`,
-          role: "assistant",
-          content: query.answer || "No answer available",
-          query_id: query.query_id,
-          timestamp: new Date(query.timestamp),
-        };
-        
-        setMessages((prev) => {
-          // Only add if not already present
-          const hasQuery = prev.some(m => m.id === userMsg.id);
-          if (hasQuery) return prev;
-          return [...prev, userMsg, assistantMsg];
-        });
-      }
+  const preloadedMessages = useMemo<ChatMessageType[]>(() => {
+    if (!queryId || !queryHistory) {
+      return [];
     }
+
+    const query = queryHistory.find((q: QueryHistory) => q.query_id === queryId);
+    if (!query) {
+      return [];
+    }
+
+    return [
+      {
+        id: `user-${query.query_id}`,
+        role: "user",
+        content: query.question,
+        timestamp: new Date(query.timestamp),
+      },
+      {
+        id: `assistant-${query.query_id}`,
+        role: "assistant",
+        content: query.answer || "No answer available",
+        query_id: query.query_id,
+        timestamp: new Date(query.timestamp),
+      },
+    ];
   }, [queryId, queryHistory]);
+
+  const mergedMessages = useMemo(() => {
+    const seen = new Set(messages.map((m) => m.id));
+    const additional = preloadedMessages.filter((m) => !seen.has(m.id));
+    return [...messages, ...additional];
+  }, [messages, preloadedMessages]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [mergedMessages]);
 
   const handleSend = async () => {
     if (!input.trim() || ragAsk.isPending) return;
@@ -79,7 +95,7 @@ export default function RagPage() {
 
     try {
       // Build chat history from existing messages (last 6 messages = 3 turns)
-      const chatHistory: ChatHistoryMessage[] = messages
+      const chatHistory: ChatHistoryMessage[] = mergedMessages
         .filter((m) => m.role === "user" || (m.role === "assistant" && m.id !== "welcome"))
         .slice(-6)
         .map((m) => ({ role: m.role, content: m.content }));
@@ -88,6 +104,7 @@ export default function RagPage() {
         question: input.trim(),
         case_id: caseId,
         chat_history: chatHistory.length > 0 ? chatHistory : undefined,
+        provider,
       });
 
       const assistantMsg: ChatMessageType = {
@@ -98,6 +115,7 @@ export default function RagPage() {
         cited_chunks: response.cited_chunks,
         sources: response.sources,
         confidence: response.confidence_score,
+        provider_used: response.provider_used,
         timestamp: new Date(),
       };
 
@@ -128,27 +146,40 @@ export default function RagPage() {
     <div className="flex h-screen flex-col">
       {/* Header */}
       <div className="border-b border-border px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-            <Bot className="h-5 w-5 text-primary" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+              <Bot className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold text-foreground">
+                AI Assistant
+              </h1>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
+                RAG Active
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-sm font-semibold text-foreground">
-              AI Assistant
-            </h1>
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
-              RAG Active
-            </p>
-          </div>
+
+          <Select value={provider} onValueChange={(value) => setProvider(value as RagProvider)}>
+            <SelectTrigger className="h-8 w-40 border-border bg-muted/40 text-xs">
+              <SelectValue placeholder="Answer provider" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto (fallback)</SelectItem>
+              <SelectItem value="openai">OpenAI</SelectItem>
+              <SelectItem value="gemini">Gemini</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Messages */}
       <ScrollArea className="flex-1 px-6 py-4">
         <div className="mx-auto max-w-3xl space-y-6">
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} message={msg} caseId={caseId} />
+          {mergedMessages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
           ))}
 
           {ragAsk.isPending && (

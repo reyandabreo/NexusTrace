@@ -12,6 +12,6 @@ export const useCaseStore = create<CaseState>()((set) => ({
   currentCaseId: null,
   selectedCase: null,
   setCurrentCase: (caseData) =>
-    set({ currentCaseId: caseData.id, selectedCase: caseData }),
+    set({ currentCaseId: caseData.case_id || caseData.id || null, selectedCase: caseData }),
   clearCase: () => set({ currentCaseId: null, selectedCase: null }),
 }));

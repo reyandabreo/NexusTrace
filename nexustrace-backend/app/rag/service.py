@@ -1,9 +1,12 @@
 import uuid
+from collections import Counter
+
 from neo4j import Session
 from app.rag.retriever import Retriever
 from app.rag.context_builder import ContextBuilder
 from app.rag.generator import Generator
 from app.schemas.rag import RAGQuery, RAGResponse, ExplanationResponse, SourceAttribution
+from fastapi import HTTPException
 
 class RAGService:
     def __init__(self, session: Session):
@@ -26,7 +29,12 @@ class RAGService:
             chat_history = [{"role": m.role, "content": m.content} for m in query.chat_history]
         
         # 4. Generate (with chat history for context continuity)
-        result = self.generator.generate_answer(query.question, context, chat_history=chat_history)
+        result = self.generator.generate_answer(
+            query.question,
+            context,
+            chat_history=chat_history,
+            provider=query.provider,
+        )
         
         # 5. Store Query Logs for XAI
         query_id = str(uuid.uuid4())
@@ -39,7 +47,11 @@ class RAGService:
             query_id: $query_id, 
             text: $text, 
             timestamp: timestamp(),
-            answer: $answer
+            answer: $answer,
+            reasoning_summary: $reasoning_summary,
+            confidence_score: $confidence_score,
+            provider_requested: $provider_requested,
+            provider_used: $provider_used
         })
         CREATE (c)-[:HAS_QUERY]->(q)
         WITH q
@@ -57,6 +69,10 @@ class RAGService:
                          query_id=query_id, 
                          text=query.question, 
                          answer=result.get("answer"),
+                         reasoning_summary=result.get("reasoning_summary", ""),
+                         confidence_score=float(result.get("confidence_score", 0.0) or 0.0),
+                         provider_requested=result.get("provider_requested", query.provider),
+                         provider_used=result.get("provider_used", "unknown"),
                          chunks=chunk_params)
         
         # Build source attribution objects
@@ -68,35 +84,94 @@ class RAGService:
             cited_chunks=result.get("cited_chunks", []),
             reasoning_summary=result.get("reasoning_summary", ""),
             confidence_score=result.get("confidence_score", 0.0),
-            sources=sources
+            sources=sources,
+            provider_requested=result.get("provider_requested", query.provider),
+            provider_used=result.get("provider_used", "unknown"),
         )
+
+    def _fallback_reasoning(self, chunks: list[dict], confidence_score: float) -> str:
+        if not chunks:
+            return "No retrieval trace is available for this response yet."
+
+        source_counts = Counter(chunk.get("source", "unknown") for chunk in chunks)
+        source_summary = ", ".join(f"{source} ({count})" for source, count in source_counts.items())
+        top_chunk = chunks[0]
+        top_score = top_chunk.get("similarity_score", 0.0)
+
+        reasoning = (
+            f"This answer was grounded in {len(chunks)} retrieved chunk(s) "
+            f"across source types: {source_summary}."
+        )
+
+        if isinstance(top_score, (int, float)) and top_score > 0:
+            reasoning += f" Top chunk similarity was {top_score * 100:.1f}%."
+
+        if isinstance(confidence_score, (int, float)) and confidence_score > 0:
+            reasoning += f" Model confidence was {confidence_score * 100:.0f}%."
+
+        return reasoning
 
     def get_explanation(self, query_id: str) -> ExplanationResponse:
         cypher = """
         MATCH (q:Query {query_id: $query_id})
-        MATCH (q)-[r:RETRIEVED]->(ch:Chunk)
+        OPTIONAL MATCH (q)-[r:RETRIEVED]->(ch:Chunk)
         OPTIONAL MATCH (ch)-[:MENTIONS]->(e:Entity)
-        RETURN q.text as question, ch.chunk_id as chunk_id, ch.text as text, r.score as score, r.source as source, collect(e.name) as entities
+        WITH q, ch, r, collect(DISTINCT e.name) as entities
+        RETURN
+            q.text as question,
+            q.answer as answer,
+            q.reasoning_summary as reasoning_summary,
+            q.confidence_score as confidence_score,
+            ch.chunk_id as chunk_id,
+            ch.text as text,
+            r.score as score,
+            r.source as source,
+            entities
+        ORDER BY score DESC
         """
-        results = self.session.run(cypher, query_id=query_id)
+        rows = list(self.session.run(cypher, query_id=query_id))
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="Query explanation not found")
         
         chunks = []
-        question = ""
-        for record in results:
-            question = record["question"]
+        question = rows[0].get("question") or ""
+        reasoning_summary = rows[0].get("reasoning_summary") or ""
+        confidence_score = rows[0].get("confidence_score") or 0.0
+
+        for record in rows:
+            chunk_id = record.get("chunk_id")
+            if not chunk_id:
+                continue
+
+            entities = record.get("entities") or []
+            score = record.get("score")
             chunks.append({
-                "chunk_id": record["chunk_id"],
-                "text": record["text"],
-                "score": record["score"],
-                "source": record["source"],
-                "entities": record["entities"]
+                "chunk_id": chunk_id,
+                "content": record.get("text") or "",
+                "similarity_score": float(score) if isinstance(score, (int, float)) else 0.0,
+                "source": record.get("source") or "vector",
+                "entities": [e for e in entities if isinstance(e, str) and e],
             })
+
+        entity_counts = Counter()
+        for chunk in chunks:
+            for entity in chunk.get("entities", []):
+                entity_counts[entity] += 1
+
+        graph_path = [name for name, _count in entity_counts.most_common(8)]
+
+        reasoning = reasoning_summary.strip() if isinstance(reasoning_summary, str) else ""
+        if not reasoning:
+            reasoning = self._fallback_reasoning(chunks, float(confidence_score or 0.0))
             
         return ExplanationResponse(
             query_id=query_id,
-            question=question,
             retrieved_chunks=chunks,
-            graph_expansion=[] # Could detail graph hops here if stored
+            graph_path=graph_path,
+            reasoning=reasoning,
+            question=question,
+            graph_expansion=[]
         )
 
     def get_query_history(self, case_id: str):
@@ -128,3 +203,32 @@ class RAGService:
         
         from app.schemas.rag import QueryHistory
         return [QueryHistory(**record) for record in results]
+
+    def delete_query(self, user_id: str, case_id: str, query_id: str):
+        """Delete a query history record that belongs to a user's case."""
+        cypher = """
+        MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})-[:HAS_QUERY]->(q:Query {query_id: $query_id})
+        OPTIONAL MATCH (f:Feedback)-[:LINKED_TO]->(q)
+        WITH q, collect(DISTINCT f) as feedback_nodes
+        FOREACH (fb IN feedback_nodes | DETACH DELETE fb)
+        WITH q, size(feedback_nodes) as feedback_deleted
+        DETACH DELETE q
+        RETURN feedback_deleted
+        """
+
+        result = self.session.run(
+            cypher,
+            user_id=user_id,
+            case_id=case_id,
+            query_id=query_id,
+        ).single()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Query not found for this case")
+
+        return {
+            "status": "deleted",
+            "query_id": query_id,
+            "case_id": case_id,
+            "feedback_deleted": int(result.get("feedback_deleted", 0)),
+        }

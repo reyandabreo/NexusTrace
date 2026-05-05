@@ -31,13 +31,13 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim()) {
-      toast.error("Username required", {
+      toast.error("❌ Username required", {
         description: "Please enter your username to sign in",
       });
       return;
     }
     if (!password) {
-      toast.error("Password required", {
+      toast.error("❌ Password required", {
         description: "Please enter your password to sign in",
       });
       return;

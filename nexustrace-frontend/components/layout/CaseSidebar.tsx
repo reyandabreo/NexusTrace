@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import {
@@ -13,13 +14,26 @@ import {
   ArrowLeft,
   Trash2,
   CalendarDays,
+  Target,
 } from "lucide-react";
 import { cn, formatCompactDate } from "@/lib/utils";
 import { getCaseName, formatCaseStatus } from "@/lib/caseUtils";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useCaseStore } from "@/store/caseStore";
+import { useDeleteCase } from "@/hooks/useCases";
 
 const statusColor: Record<string, string> = {
   open: "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#22c55e]",
@@ -34,9 +48,27 @@ interface CaseSidebarProps {
 export default function CaseSidebar({ onClose }: CaseSidebarProps = {}) {
   const pathname = usePathname();
   const params = useParams();
+  const router = useRouter();
   const caseId = params?.caseId as string;
   const selectedCase = useCaseStore((s) => s.selectedCase);
+  const clearCase = useCaseStore((s) => s.clearCase);
+  const deleteCase = useDeleteCase();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const base = `/dashboard/case/${caseId}`;
+
+  const handleDeleteCase = async () => {
+    if (!caseId) return;
+
+    try {
+      await deleteCase.mutateAsync(caseId);
+      clearCase();
+      setConfirmOpen(false);
+      onClose?.();
+      router.push("/dashboard/cases");
+    } catch {
+      // Error toast is handled by useDeleteCase.
+    }
+  };
 
   const navItems = [
     { href: base, label: "Overview", icon: LayoutDashboard },
@@ -47,6 +79,7 @@ export default function CaseSidebar({ onClose }: CaseSidebarProps = {}) {
       label: "Prioritized Leads",
       icon: AlertTriangle,
     },
+    { href: `${base}/attack-chain`, label: "Attack Chain", icon: Target },
     { href: `${base}/network`, label: "Network Graph", icon: Network },
     { href: `${base}/mindmap`, label: "Mindmap", icon: BrainCircuit },
     { href: `${base}/rag`, label: "AI Assistant", icon: MessageSquare },
@@ -126,14 +159,39 @@ export default function CaseSidebar({ onClose }: CaseSidebarProps = {}) {
 
       {/* Case Actions */}
       <div className="border-t border-border p-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Delete Case
-        </Button>
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-destructive"
+              disabled={!caseId || deleteCase.isPending}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete Case
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="border-border bg-card">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-foreground">Delete this case?</AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground">
+                This action permanently deletes the case and related evidence links. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-border" disabled={deleteCase.isPending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteCase}
+                disabled={deleteCase.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteCase.isPending ? "Deleting..." : "Delete Case"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </aside>
   );

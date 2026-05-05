@@ -159,6 +159,76 @@ class TimelineService:
         """
         
         results = self.session.run(query, case_id=case_id)
+
+        benign_entity_types = {"PERSON", "ORG", "GPE", "NORP", "EMAIL", "DATE", "TIME", "MONEY"}
+        common_benign_apps = {
+            "chrome",
+            "google chrome",
+            "firefox",
+            "microsoft",
+            "microsoft edge",
+            "edge",
+            "windows",
+            "aws",
+            "amazon web services",
+            "office",
+            "outlook",
+            "teams",
+        }
+        malware_keywords = [
+            "malware",
+            "ransomware",
+            "trojan",
+            "worm",
+            "rootkit",
+            "backdoor",
+            "keylogger",
+            "botnet",
+            "payload",
+            "c2",
+            "command and control",
+        ]
+        anomaly_keywords = ["anomal", "suspicious", "unusual", "abnormal", "outlier", "ioc", "indicator"]
+        attack_keywords = [
+            "exploit",
+            "exfiltrat",
+            "unauthorized",
+            "privilege escalation",
+            "brute force",
+            "persistence",
+            "lateral movement",
+            "beacon",
+            "dropper",
+            "credential dump",
+            "injection",
+        ]
+        suspicious_exec_keywords = [
+            "powershell",
+            "cmd.exe",
+            "wscript",
+            "cscript",
+            "rundll32",
+            "regsvr32",
+            "scheduled task",
+            "autorun",
+        ]
+        suspicious_exec_pattern = re.compile(r"\b[a-z0-9._-]+\.(?:exe|bat|cmd|ps1|vbs|scr|dll|com)\b")
+
+        def count_hits(text: str, keywords: List[str]) -> int:
+            if not text:
+                return 0
+            return sum(1 for kw in keywords if kw in text)
+
+        def looks_like_suspicious_executable(entity_name: str) -> bool:
+            return bool(suspicious_exec_pattern.search((entity_name or "").lower()))
+
+        def is_common_benign_application(entity_name: str) -> bool:
+            normalized = (entity_name or "").strip().lower()
+            if not normalized:
+                return False
+            if normalized in common_benign_apps:
+                return True
+            return any(normalized.startswith(f"{app} ") for app in common_benign_apps)
         
         leads = []
         for record in results:
@@ -188,8 +258,8 @@ class TimelineService:
             
             # Analyze chunk texts for suspicious patterns
             chunk_texts = record["chunk_texts"] or []
-            if chunk_texts:
-                combined_text = " ".join(chunk_texts[:10]).lower()  # Sample first 10 chunks
+            combined_text = " ".join(chunk_texts[:10]).lower() if chunk_texts else ""
+            if combined_text:
                 
                 if any(word in combined_text for word in ['failed', 'denied', 'unauthorized', 'blocked']):
                     reason_parts.append("involvement in failed/denied activities")
@@ -204,20 +274,25 @@ class TimelineService:
             last_seen = self._parse_timestamp(record["last_occurrence"])
 
             # Map entity type to frontend format
+            raw_entity_type = (record["entity_type"] or "").upper()
             entity_type_map = {
                 "PERSON": "person",
                 "ORG": "organization",
                 "GPE": "location",
+                "PRODUCT": "application",
                 "EMAIL": "email",
                 "IP_ADDRESS": "ip",
+                "URL": "url",
+                "PHONE": "phone",
                 "DATE": "other"
             }
-            entity_type = entity_type_map.get(record["entity_type"], "other")
+            entity_type = entity_type_map.get(raw_entity_type, "other")
             
             leads.append({
                 "id": record["entity_id"],
                 "entity": record["entity_name"] or "Unknown",
                 "entity_type": entity_type,
+                "raw_entity_type": raw_entity_type,
                 "mention_count": mention_count,
                 "co_score": co_score,
                 "connections": connection_count,
@@ -225,6 +300,7 @@ class TimelineService:
                 "last_seen": last_seen,
                 "reason_parts": reason_parts,
                 "chunk_texts": chunk_texts,
+                "combined_text": combined_text,
             })
 
         def norm_log(value: float, max_value: float) -> float:
@@ -248,6 +324,25 @@ class TimelineService:
         max_mentions = max((lead["mention_count"] for lead in leads), default=0) or 1
         max_co_score = max((lead["co_score"] for lead in leads), default=0) or 1
 
+        factor_weights = {
+            "intrinsic_risk_signal": 0.45,
+            "frequency_signal": 0.20,
+            "graph_connectivity_signal": 0.25,
+            "recency_signal": 0.10,
+        }
+        factor_labels = {
+            "intrinsic_risk_signal": "intrinsic risk language",
+            "frequency_signal": "mention frequency",
+            "graph_connectivity_signal": "entity co-occurrence density",
+            "recency_signal": "recent activity",
+        }
+
+        def inverse_norm_log(norm_value: float, max_value: float) -> float:
+            if max_value <= 0:
+                return 0.0
+            bounded_norm = min(max(norm_value, 0.0), 1.0)
+            return math.expm1(bounded_norm * math.log1p(max_value))
+
         for lead in leads:
             mention_norm = norm_log(lead["mention_count"], max_mentions)
             co_norm = norm_log(lead["co_score"], max_co_score)
@@ -255,14 +350,57 @@ class TimelineService:
             risk_norm = min(max(risk_norm, 0.0), 1.0)
             recency = recency_score(lead["last_seen"])
 
-            final_risk = (
-                0.45 * risk_norm
-                + 0.20 * mention_norm
-                + 0.25 * co_norm
-                + 0.10 * recency
+            factor_norm_values = {
+                "intrinsic_risk_signal": risk_norm,
+                "frequency_signal": mention_norm,
+                "graph_connectivity_signal": co_norm,
+                "recency_signal": recency,
+            }
+            weighted_components = {
+                key: factor_weights[key] * factor_norm_values[key]
+                for key in factor_weights
+            }
+            base_risk = sum(weighted_components.values())
+
+            combined_text = lead["combined_text"]
+            entity_name = lead["entity"]
+            entity_name_lower = entity_name.lower()
+
+            malware_hits = count_hits(combined_text, malware_keywords) + count_hits(entity_name_lower, malware_keywords)
+            anomaly_hits = count_hits(combined_text, anomaly_keywords)
+            attack_hits = count_hits(combined_text, attack_keywords)
+            exec_hits = count_hits(combined_text, suspicious_exec_keywords)
+            has_suspicious_executable = looks_like_suspicious_executable(entity_name)
+
+            strong_harm_link = has_suspicious_executable or malware_hits > 0 or (anomaly_hits > 0 and attack_hits > 0)
+            weak_harm_link = strong_harm_link or anomaly_hits > 0 or attack_hits > 0 or exec_hits > 0
+
+            is_context_sensitive_entity = (
+                lead["raw_entity_type"] in benign_entity_types
+                or is_common_benign_application(entity_name)
             )
 
-            lead["risk_score"] = round(min(final_risk, 1.0), 2)
+            final_risk = base_risk
+
+            # Keep very high risk bands for entities with concrete malicious linkage.
+            if is_context_sensitive_entity:
+                if not weak_harm_link:
+                    final_risk = min(final_risk, 0.40)
+                    lead["reason_parts"].append("risk reduced: no direct malicious linkage")
+                elif not strong_harm_link:
+                    final_risk = min(final_risk, 0.65)
+                    lead["reason_parts"].append("risk constrained pending stronger malware linkage")
+
+            if has_suspicious_executable:
+                lead["reason_parts"].append("suspicious executable/script artifact observed")
+            if malware_hits > 0:
+                lead["reason_parts"].append("malware indicators in linked evidence")
+            elif anomaly_hits > 0:
+                lead["reason_parts"].append("anomalous behavior in linked evidence")
+
+            final_risk = min(final_risk, 1.0)
+            cap_adjustment = max(base_risk - final_risk, 0.0)
+            lead["risk_score"] = round(final_risk, 2)
 
             # Default reason if none generated
             if len(lead["reason_parts"]) == 1:
@@ -273,7 +411,98 @@ class TimelineService:
                 else:
                     lead["reason_parts"].append("low-risk profile")
 
-            lead["reason"] = ", ".join(lead["reason_parts"]).capitalize()
+            deduped_parts = []
+            seen_parts = set()
+            for part in lead["reason_parts"]:
+                if part in seen_parts:
+                    continue
+                seen_parts.add(part)
+                deduped_parts.append(part)
+
+            lead["reason"] = ", ".join(deduped_parts).capitalize()
+
+            sorted_components = sorted(
+                weighted_components.items(),
+                key=lambda item: item[1],
+                reverse=True,
+            )
+            lead["risk_breakdown"] = {
+                key: round(value, 3)
+                for key, value in weighted_components.items()
+            }
+            if cap_adjustment > 0:
+                lead["risk_breakdown"]["cap_adjustment"] = round(-cap_adjustment, 3)
+
+            lead["top_risk_drivers"] = [
+                f"{factor_labels[key]} contributes {value:.2f}"
+                for key, value in sorted_components[:3]
+                if value > 0
+            ]
+
+            counterfactuals = []
+            positive_components = [item for item in sorted_components if item[1] > 0]
+            if positive_components:
+                top_key, top_value = positive_components[0]
+                second_key, second_value = positive_components[1] if len(positive_components) > 1 else (None, 0.0)
+
+                if second_key:
+                    reduction_ratio = 0.35
+                    estimated_drop = reduction_ratio * (top_value + second_value)
+                    reduced_risk = max(0.0, final_risk - estimated_drop)
+                    counterfactuals.append(
+                        f"If {factor_labels[top_key]} and {factor_labels[second_key]} dropped by about 35%, "
+                        f"risk could move from {final_risk:.2f} to around {reduced_risk:.2f}."
+                    )
+                else:
+                    reduction_ratio = 0.35
+                    estimated_drop = reduction_ratio * top_value
+                    reduced_risk = max(0.0, final_risk - estimated_drop)
+                    counterfactuals.append(
+                        f"If {factor_labels[top_key]} dropped by about 35%, risk could move from "
+                        f"{final_risk:.2f} to around {reduced_risk:.2f}."
+                    )
+
+                if final_risk > 0.40:
+                    required_delta = final_risk - 0.40
+                    top_weight = factor_weights[top_key]
+                    top_norm = factor_norm_values[top_key]
+                    required_norm_drop = min(top_norm, required_delta / top_weight) if top_weight > 0 else 0.0
+                    target_norm = max(0.0, top_norm - required_norm_drop)
+
+                    if top_key == "frequency_signal":
+                        target_mentions = int(round(inverse_norm_log(target_norm, max_mentions)))
+                        counterfactuals.append(
+                            f"To reduce below 0.40, mention frequency would need to drop to about {target_mentions} "
+                            f"mentions (from {lead['mention_count']})."
+                        )
+                    elif top_key == "graph_connectivity_signal":
+                        target_co_score = int(round(inverse_norm_log(target_norm, max_co_score)))
+                        counterfactuals.append(
+                            f"To reduce below 0.40, co-occurrence pressure would need to drop to about {target_co_score} "
+                            f"co-occurrence points (from {lead['co_score']})."
+                        )
+                    elif top_key == "intrinsic_risk_signal":
+                        counterfactuals.append(
+                            f"To reduce below 0.40, intrinsic risk language signal would need to drop from "
+                            f"{top_norm:.2f} to about {target_norm:.2f}."
+                        )
+                    else:
+                        counterfactuals.append(
+                            f"To reduce below 0.40, the recent activity signal would need to decay from "
+                            f"{top_norm:.2f} to about {target_norm:.2f}."
+                        )
+
+                if final_risk < 0.70 and second_key:
+                    growth_ratio = 0.25
+                    top_growth = growth_ratio * factor_weights[top_key] * max(0.0, 1.0 - factor_norm_values[top_key])
+                    second_growth = growth_ratio * factor_weights[second_key] * max(0.0, 1.0 - factor_norm_values[second_key])
+                    raised_risk = min(1.0, final_risk + top_growth + second_growth)
+                    counterfactuals.append(
+                        f"If {factor_labels[top_key]} and {factor_labels[second_key]} increased by about 25%, "
+                        f"risk could rise from {final_risk:.2f} to around {raised_risk:.2f}."
+                    )
+
+            lead["counterfactual_explanations"] = counterfactuals[:3]
 
         leads.sort(
             key=lambda item: (
@@ -288,17 +517,23 @@ class TimelineService:
             lead.pop("avg_risk", None)
             lead.pop("mention_count", None)
             lead.pop("co_score", None)
+            lead.pop("raw_entity_type", None)
             lead.pop("reason_parts", None)
             lead.pop("chunk_texts", None)
+            lead.pop("combined_text", None)
 
         return leads
         
     def get_entities(self, case_id: str):
         query = """
         MATCH (c:Case {case_id: $case_id})
-        MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)-[:HAS_CHUNK]->(ch:Chunk)-[:MENTIONS]->(ent:Entity)
-        RETURN ent.name as name, ent.type as type, count(ch) as mentions
-        ORDER BY mentions DESC
+        MATCH (c)-[:HAS_EVIDENCE]->(:Evidence)-[:HAS_CHUNK]->(ch:Chunk)-[:MENTIONS]->(ent:Entity)
+        RETURN elementId(ent) as id,
+               ent.name as name,
+               ent.type as type,
+               count(DISTINCT ch) as mentions,
+               avg(ch.risk_score) as risk_score
+        ORDER BY mentions DESC, risk_score DESC
         """
         results = self.session.run(query, user_id=self.user_id, case_id=case_id)
         return [record.data() for record in results]

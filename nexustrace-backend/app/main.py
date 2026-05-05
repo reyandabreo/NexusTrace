@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from neo4j.exceptions import ServiceUnavailable, SessionExpired
 from app.core.config import settings
 from app.db.neo4j import neo4j_handler
 from app.ai.nlp import load_nlp_model
@@ -12,6 +14,22 @@ from app.feedback.router import router as feedback_router
 from app.graph.router import router as graph_router
 
 app = FastAPI(title=settings.APP_NAME, description="Forensic Intelligence Backend")
+
+
+@app.exception_handler(ServiceUnavailable)
+async def handle_neo4j_unavailable(_request: Request, _exc: ServiceUnavailable):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Database service is temporarily unavailable. Please try again shortly."},
+    )
+
+
+@app.exception_handler(SessionExpired)
+async def handle_neo4j_session_expired(_request: Request, _exc: SessionExpired):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Database session expired. Please retry your request."},
+    )
 
 # CORS
 app.add_middleware(

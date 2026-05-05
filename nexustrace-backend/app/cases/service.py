@@ -147,18 +147,178 @@ class CaseService:
         return CaseResponse(**data)
 
     def delete_case(self, case_id: str):
-        # Cascading delete might be dangerous, but usually requested for cleanup.
-        # We will delete the case node and the relationship.
-        # Ideally we should also delete Evidence attached to it, but that's a larger cascade.
-        # For this scope, let's delete Case and Evidence relationships.
-        
-        # Check existence and permission
-        self.get_case(case_id) 
+        # Check existence and permission first.
+        self.get_case(case_id)
 
-        query = """
+        # 1) Collect chunk IDs for this case before deleting nodes.
+        chunk_result = self.session.run(
+            """
+            MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})
+            OPTIONAL MATCH (c)-[:HAS_EVIDENCE]->(:Evidence)-[:HAS_CHUNK]->(ch:Chunk)
+            RETURN collect(DISTINCT ch.chunk_id) as chunk_ids
+            """,
+            user_id=self.user_id,
+            case_id=case_id,
+        ).single()
+        chunk_ids = [cid for cid in (chunk_result["chunk_ids"] if chunk_result else []) if cid]
 
-        MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})
-        DETACH DELETE c
-        """
-        self.session.run(query, user_id=self.user_id, case_id=case_id)
-        return {"status": "success", "message": "Case deleted"}
+        # 2) Delete feedback linked to this case's queries.
+        feedback_from_queries = self.session.run(
+            """
+            MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})-[:HAS_QUERY]->(q:Query)
+            OPTIONAL MATCH (f:Feedback)-[:LINKED_TO]->(q)
+            WITH collect(DISTINCT f) as feedback_nodes
+            FOREACH (fb IN feedback_nodes | DETACH DELETE fb)
+            RETURN size(feedback_nodes) as deleted_count
+            """,
+            user_id=self.user_id,
+            case_id=case_id,
+        ).single()
+        feedback_from_queries_count = int((feedback_from_queries or {}).get("deleted_count", 0))
+
+        # 3) Delete feedback linked directly to this case's chunks.
+        feedback_from_chunks = self.session.run(
+            """
+            MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})-[:HAS_EVIDENCE]->(:Evidence)-[:HAS_CHUNK]->(ch:Chunk)
+            OPTIONAL MATCH (f:Feedback)-[:ABOUT]->(ch)
+            WITH collect(DISTINCT f) as feedback_nodes
+            FOREACH (fb IN feedback_nodes | DETACH DELETE fb)
+            RETURN size(feedback_nodes) as deleted_count
+            """,
+            user_id=self.user_id,
+            case_id=case_id,
+        ).single()
+        feedback_from_chunks_count = int((feedback_from_chunks or {}).get("deleted_count", 0))
+
+        # 4) Delete query/prompt history nodes for the case.
+        query_delete_result = self.session.run(
+            """
+            MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})
+            OPTIONAL MATCH (c)-[:HAS_QUERY]->(q:Query)
+            WITH collect(DISTINCT q) as query_nodes
+            FOREACH (q IN query_nodes | DETACH DELETE q)
+            RETURN size(query_nodes) as deleted_count
+            """,
+            user_id=self.user_id,
+            case_id=case_id,
+        ).single()
+        deleted_queries = int((query_delete_result or {}).get("deleted_count", 0))
+
+        # 5) Adjust CO_OCCURS metadata to remove references to deleted chunks.
+        co_occurs_edges_cleaned = 0
+        co_occurs_edges_deleted = 0
+        if chunk_ids:
+            co_occurs_result = self.session.run(
+                """
+                MATCH ()-[r:CO_OCCURS]-()
+                WHERE any(cid IN coalesce(r.chunk_ids, []) WHERE cid IN $chunk_ids)
+                WITH r, [cid IN coalesce(r.chunk_ids, []) WHERE NOT cid IN $chunk_ids] as remaining_chunk_ids
+                SET r.chunk_ids = remaining_chunk_ids,
+                    r.count = size(remaining_chunk_ids)
+                WITH collect(DISTINCT r) as touched_rels
+                UNWIND touched_rels as rel
+                WITH rel, coalesce(rel.count, 0) as rel_count, touched_rels
+                FOREACH (_ IN CASE WHEN rel_count = 0 THEN [1] ELSE [] END | DELETE rel)
+                RETURN size(touched_rels) as cleaned_edges,
+                       count(CASE WHEN rel_count = 0 THEN 1 END) as deleted_edges
+                """,
+                chunk_ids=chunk_ids,
+            ).single()
+            co_occurs_edges_cleaned = int((co_occurs_result or {}).get("cleaned_edges", 0))
+            co_occurs_edges_deleted = int((co_occurs_result or {}).get("deleted_edges", 0))
+
+        # 6) Delete the case subtree (chunks, evidence, case).
+        subtree_delete_result = self.session.run(
+            """
+            MATCH (u:User {id: $user_id})-[:CREATED]->(c:Case {case_id: $case_id})
+            OPTIONAL MATCH (c)-[:HAS_EVIDENCE]->(e:Evidence)
+            OPTIONAL MATCH (e)-[:HAS_CHUNK]->(ch:Chunk)
+            WITH c, collect(DISTINCT e) as evidence_nodes, collect(DISTINCT ch) as chunk_nodes
+            FOREACH (chunk IN chunk_nodes | DETACH DELETE chunk)
+            FOREACH (evidence IN evidence_nodes | DETACH DELETE evidence)
+            WITH c, size(evidence_nodes) as evidence_deleted, size(chunk_nodes) as chunks_deleted
+            DETACH DELETE c
+            RETURN evidence_deleted, chunks_deleted, 1 as case_deleted
+            """,
+            user_id=self.user_id,
+            case_id=case_id,
+        ).single()
+        evidence_deleted = int((subtree_delete_result or {}).get("evidence_deleted", 0))
+        chunks_deleted = int((subtree_delete_result or {}).get("chunks_deleted", 0))
+        case_deleted = int((subtree_delete_result or {}).get("case_deleted", 0))
+
+        # 7) Cleanup global orphans that can be left by previous partial deletes.
+        orphan_chunk_cleanup = self.session.run(
+            """
+            MATCH (ch:Chunk)
+            WHERE NOT (:Evidence)-[:HAS_CHUNK]->(ch)
+            WITH collect(DISTINCT ch) as chunk_nodes
+            FOREACH (chunk IN chunk_nodes | DETACH DELETE chunk)
+            RETURN size(chunk_nodes) as deleted_count
+            """
+        ).single()
+        orphan_chunks_deleted = int((orphan_chunk_cleanup or {}).get("deleted_count", 0))
+
+        orphan_evidence_cleanup = self.session.run(
+            """
+            MATCH (e:Evidence)
+            WHERE NOT (:Case)-[:HAS_EVIDENCE]->(e)
+            WITH collect(DISTINCT e) as evidence_nodes
+            FOREACH (evidence IN evidence_nodes | DETACH DELETE evidence)
+            RETURN size(evidence_nodes) as deleted_count
+            """
+        ).single()
+        orphan_evidence_deleted = int((orphan_evidence_cleanup or {}).get("deleted_count", 0))
+
+        orphan_entity_cleanup = self.session.run(
+            """
+            MATCH (ent:Entity)
+            WHERE NOT (ent)<-[:MENTIONS]-(:Chunk)
+            WITH collect(DISTINCT ent) as entity_nodes
+            FOREACH (ent IN entity_nodes | DETACH DELETE ent)
+            RETURN size(entity_nodes) as deleted_count
+            """
+        ).single()
+        orphan_entities_deleted = int((orphan_entity_cleanup or {}).get("deleted_count", 0))
+
+        orphan_feedback_cleanup = self.session.run(
+            """
+            MATCH (f:Feedback)
+            WHERE NOT (f)-[:ABOUT]->(:Chunk)
+              AND NOT (f)-[:LINKED_TO]->(:Query)
+            WITH collect(DISTINCT f) as feedback_nodes
+            FOREACH (fb IN feedback_nodes | DETACH DELETE fb)
+            RETURN size(feedback_nodes) as deleted_count
+            """
+        ).single()
+        orphan_feedback_deleted = int((orphan_feedback_cleanup or {}).get("deleted_count", 0))
+
+        orphan_query_cleanup = self.session.run(
+            """
+            MATCH (q:Query)
+            WHERE NOT (:Case)-[:HAS_QUERY]->(q)
+            WITH collect(DISTINCT q) as query_nodes
+            FOREACH (q IN query_nodes | DETACH DELETE q)
+            RETURN size(query_nodes) as deleted_count
+            """
+        ).single()
+        orphan_queries_deleted = int((orphan_query_cleanup or {}).get("deleted_count", 0))
+
+        return {
+            "status": "success",
+            "message": "Case and related graph data deleted",
+            "deleted": {
+                "case": case_deleted,
+                "evidence": evidence_deleted,
+                "chunks": chunks_deleted,
+                "queries": deleted_queries,
+                "feedback": feedback_from_queries_count + feedback_from_chunks_count,
+                "co_occurs_edges_cleaned": co_occurs_edges_cleaned,
+                "co_occurs_edges_deleted": co_occurs_edges_deleted,
+                "orphan_chunks": orphan_chunks_deleted,
+                "orphan_evidence": orphan_evidence_deleted,
+                "orphan_entities": orphan_entities_deleted,
+                "orphan_feedback": orphan_feedback_deleted,
+                "orphan_queries": orphan_queries_deleted,
+            },
+        }

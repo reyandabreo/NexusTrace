@@ -8,6 +8,8 @@ import { useAuthStore } from "@/store/authStore";
 import { useAuditStore } from "@/store/auditStore";
 import type { LoginRequest, RegisterRequest, AuthResponse, User } from "@/types/auth";
 
+const LOGIN_TOAST_ID = "auth-login-status";
+
 export function useLogin() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -33,7 +35,8 @@ export function useLogin() {
           details: "Successful login from web interface",
         });
         
-        toast.success("Login successful", {
+        toast.success("✅ Login successful", {
+          id: LOGIN_TOAST_ID,
           description: `Welcome back, ${data.user.username}`,
         });
       } else {
@@ -75,13 +78,14 @@ export function useLogin() {
             details: "Successful login from web interface",
           });
           
-          toast.success("Login successful", {
+          toast.success("✅ Login successful", {
+            id: LOGIN_TOAST_ID,
             description: `Welcome back, ${user.username}`,
           });
         } catch (e) {
           // Last resort fallback
           setAuth(data.access_token, { id: '', username: 'User', email: '' });
-          toast.success("Login successful");
+          toast.success("✅ Login successful", { id: LOGIN_TOAST_ID });
         }
       }
       router.push("/dashboard");
@@ -89,9 +93,13 @@ export function useLogin() {
     onError: (error: any) => {
       const data = error.response?.data;
       let description = "Invalid credentials";
+
+      if (error.message === "Network Error" || !error.response) {
+        description = "Cannot reach server. Please ensure the backend is running.";
+      }
       
       // Handle Zod validation error (array)
-      if (Array.isArray(data)) {
+      else if (Array.isArray(data)) {
         description = data[0]?.msg || "Invalid credentials";
       }
       // Handle single validation error object
@@ -114,7 +122,10 @@ export function useLogin() {
         errorMessage: description,
       });
       
-      toast.error("Login failed", { description });
+      toast.error("❌ Login failed", {
+        id: LOGIN_TOAST_ID,
+        description,
+      });
     },
   });
 }
@@ -128,7 +139,7 @@ export function useRegister() {
       return res.data;
     },
     onSuccess: () => {
-      toast.success("Account created", {
+      toast.success("✅ Account created", {
         description: "Please log in with your credentials",
       });
       router.push("/login");
@@ -150,7 +161,7 @@ export function useRegister() {
         description = data.detail;
       }
       
-      toast.error("Registration failed", { description });
+      toast.error("❌ Registration failed", { description });
     },
   });
 }
@@ -183,7 +194,7 @@ export function useLogout() {
       localStorage.removeItem("audit-storage");
     }
     
-    toast.success("Logged out");
+    toast.success("✅ Logged out");
     router.push("/login");
   };
 }
